@@ -19,10 +19,12 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // ✅ Middleware
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "https://sheikhmaazraheel.github.io/MYR-Surgical/", // ✅ replace with your actual frontend URL
+    credentials: true, // ✅ allows cookies to be sent
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
