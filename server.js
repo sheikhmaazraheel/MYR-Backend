@@ -6,6 +6,7 @@ const path = require("path");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
 const session = require("express-session");
+const MongoStore = require("connect-mongo");
 
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
@@ -36,15 +37,18 @@ app.use(
     secret: process.env.SESSION_SECRET || "default_secret",
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      collectionName: "sessions",
+    }),
     cookie: {
       httpOnly: true,
-      secure: true, // MUST be true on Render (HTTPS)
-      sameSite: "None", // Allow cross-origin
-      maxAge: 1000 * 60 * 60,
+      secure: true,
+      sameSite: "None",
+      maxAge: 1000 * 60 * 60, // 1 hour
     },
   })
 );
-
 // ✅ Authentication Middleware
 function isAuthenticated(req, res, next) {
   if (req.session.loggedIn) return next();
