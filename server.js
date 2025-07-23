@@ -21,7 +21,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // ✅ Middleware
 app.use(
   cors({
-    origin: "https://sheikhmaazraheel.github.io/MYR-Surgical/", // ✅ replace with your actual frontend URL
+    origin: "https://sheikhmaazraheel.github.io", // ✅ replace with your actual frontend URL
     credentials: true, // ✅ allows cookies to be sent
   })
 );
