@@ -29,7 +29,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ CORS Setup (replace with your frontend URL)
 app.use(cors({
-  origin: "https://your-frontend-site.netlify.app", // update this
+  origin: "https://sheikhmaazraheel.github.io", // update this
   credentials: true,
 }));
 
