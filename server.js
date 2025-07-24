@@ -22,14 +22,25 @@ mongoose.connect(process.env.MONGODB_URI)
 // ✅ Middleware
 app.use(
   cors({
-    origin: "https://sheikhmaazraheel.github.io", // ✅ replace with your actual frontend URL
+    origin: true, // ✅ replace with your actual frontend URL
     credentials: true, // ✅ allows cookies to be sent
   })
+
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static(path.join(__dirname, "..")));
+
+// ✅ Security Headers
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'");
+  next();
+}); 
 
 // ✅ Session Config
 app.use(
