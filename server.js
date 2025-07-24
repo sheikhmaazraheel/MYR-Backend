@@ -85,6 +85,8 @@ app.post("/logout", (req, res) => {
 
 // ✅ Auth Check (used in /admin.html fetch)
 app.get("/check-auth", (req, res) => {
+  console.log("Session ID:", req.sessionID);
+  console.log("Session Data:", req.session);
   if (req.session.loggedIn) {
     return res.json({ authenticated: true });
   } else {
