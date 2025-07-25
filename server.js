@@ -13,10 +13,13 @@ const Order = require("./models/Orders");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Render's proxy
+app.set("trust proxy", 1);
+
 // MongoDB Connect
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
+  .then(() => console.log("✅ MongoDB Connected, State:", mongoose.connection.readyState))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
 // Middleware
@@ -27,27 +30,46 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "..")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ✅ CORS Setup (replace with your frontend URL)
+// CORS Setup
 app.use(cors({
   origin: "https://sheikhmaazraheel.github.io",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"],
+  exposedHeaders: ["Set-Cookie"],
 }));
 
-// ✅ Session Config
+// Log all requests
+app.use((req, res, next) => {
+  console.log("Request:", {
+    method: req.method,
+    url: req.url,
+    origin: req.get("origin"),
+    cookies: req.headers.cookie || "No cookies",
+    withCredentials: req.get("withCredentials"),
+  });
+  next();
+});
+
+// Session Config
+const sessionStore = MongoStore.create({
+  mongoUrl: process.env.MONGODB_URI,
+  collectionName: "sessions",
+});
+sessionStore.on("error", (err) => console.error("Session Store Error:", err));
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "default_secret",
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
+    store: sessionStore,
     cookie: {
-  httpOnly: true,
-  secure: true,
-  sameSite: "None",
-  maxAge: 1000 * 60 * 60,
-},
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 1000 * 60 * 60,
+      path: "/",
+    },
   })
 );
 
@@ -57,19 +79,18 @@ const ADMIN = {
   password: process.env.ADMIN_HASH,
 };
 
-// ✅ Authentication Middleware
+// Authentication Middleware
 function isAuthenticated(req, res, next) {
+  console.log("isAuthenticated:", {
+    sessionID: req.sessionID,
+    loggedIn: req.session.loggedIn,
+    cookies: req.headers.cookie || "No cookies",
+  });
   if (req.session.loggedIn) return next();
   res.status(401).json({ authenticated: false });
 }
-app.use((req, res, next) => {
-  console.log("CORS Headers:", {
-    origin: req.get("origin"),
-    credentials: req.get("withCredentials"),
-  });
-  next();
-});
-// 🔐 Login Route
+
+// Login Route
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   console.log("Login attempt:", { username, sessionID: req.sessionID });
@@ -77,7 +98,11 @@ app.post("/login", async (req, res) => {
     const match = await bcrypt.compare(password, ADMIN.password);
     if (match) {
       req.session.loggedIn = true;
-      console.log("Session set:", req.session);
+      console.log("Session set:", {
+        sessionID: req.sessionID,
+        session: req.session,
+        setCookie: `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`,
+      });
       return res.json({ success: true });
     }
   }
@@ -93,10 +118,13 @@ app.post("/logout", (req, res) => {
   });
 });
 
-// ✅ Auth Check (used in /admin.html fetch)
+// Check-auth Route
 app.get("/check-auth", (req, res) => {
-  console.log("Session ID:", req.sessionID);
-  console.log("Session Data:", req.session);
+  console.log("Check-auth:", {
+    sessionID: req.sessionID,
+    loggedIn: req.session.loggedIn,
+    cookies: req.headers.cookie || "No cookies",
+  });
   if (req.session.loggedIn) {
     return res.json({ authenticated: true });
   } else {
@@ -104,7 +132,7 @@ app.get("/check-auth", (req, res) => {
   }
 });
 
-// Multer Config
+// Multer Config and other routes (unchanged)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -200,7 +228,7 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-// Get All Orders (optional: protect later)
+// Get All Orders
 app.get("/orders", async (req, res) => {
   try {
     const orders = await Order.find();
@@ -212,7 +240,7 @@ app.get("/orders", async (req, res) => {
 
 // Admin Panel (protected)
 app.get("/admin.html", isAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, "../protected/admin.html"));
+  res.sendFile(path.join(__dirname, "..", "admin.html"));
 });
 
 // Default
