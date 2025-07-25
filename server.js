@@ -29,8 +29,10 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ CORS Setup (replace with your frontend URL)
 app.use(cors({
-  origin: "https://sheikhmaazraheel.github.io", // update this
+  origin: "https://sheikhmaazraheel.github.io",
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type"],
 }));
 
 // ✅ Session Config
@@ -41,11 +43,11 @@ app.use(
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
     cookie: {
-      httpOnly: true,
-      secure: true, // Must be true for HTTPS
-      sameSite: "None", // Cross-origin cookies
-      maxAge: 1000 * 60 * 60,
-    },
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  maxAge: 1000 * 60 * 60,
+},
   })
 );
 
@@ -60,7 +62,13 @@ function isAuthenticated(req, res, next) {
   if (req.session.loggedIn) return next();
   res.status(401).json({ authenticated: false });
 }
-
+app.use((req, res, next) => {
+  console.log("CORS Headers:", {
+    origin: req.get("origin"),
+    credentials: req.get("withCredentials"),
+  });
+  next();
+});
 // 🔐 Login Route
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
