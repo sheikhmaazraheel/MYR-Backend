@@ -64,10 +64,12 @@ function isAuthenticated(req, res, next) {
 // 🔐 Login Route
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
+  console.log("Login attempt:", { username, sessionID: req.sessionID });
   if (username === ADMIN.username) {
     const match = await bcrypt.compare(password, ADMIN.password);
     if (match) {
       req.session.loggedIn = true;
+      console.log("Session set:", req.session);
       return res.json({ success: true });
     }
   }
