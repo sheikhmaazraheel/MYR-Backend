@@ -170,6 +170,11 @@ app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) =>
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "myr-surgical",
+        transformation: [
+          { width: 800, crop: "limit" }, // Resize to 800px max width
+          { quality: "auto:good" }, // Moderate quality
+          { fetch_format: "auto" }, // WebP or JPEG
+        ],
       });
       imageUrl = result.secure_url;
       console.log("Image uploaded to Cloudinary:", imageUrl);
