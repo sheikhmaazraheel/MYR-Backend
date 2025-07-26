@@ -145,32 +145,47 @@ const upload = multer({ storage });
 // Upload Product (Admin only)
 app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) => {
   try {
-    const { id, name, price, discount, category, mostSell, available } = req.body;
-    const colors = req.body.colors?.split(",").map(c => c.trim()).filter(Boolean) || [];
-    const sizes = req.body.sizes?.split(",").map(s => s.trim()).filter(Boolean) || [];
+    const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
+
+    // Validate required fields
+    if (!id || !name || !price || !category) {
+      console.error("Validation Error: Missing required fields", { id, name, price, category });
+      return res.status(400).json({ message: "Missing required fields: id, name, price, category" });
+    }
+
+    // Process form data
+    const colorsArray = colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [];
+    const sizesArray = sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
     const image = req.file?.filename || null;
 
+    // Create product
     const product = new Product({
-      id,
-      name,
+      id : id.trim(),
+      name : name.trim(),
       price: parseFloat(price),
       discount: discount ? parseFloat(discount) : 0,
       category,
       mostSell: mostSell === "true",
       available: available === "true",
       image,
-      colors,
-      sizes,
+      colors: colorsArray,
+      sizes: sizesArray,
     });
 
+    // Save to MongoDB
     await product.save();
+    console.log("Product saved:", { id, name });
     res.json({ message: "Product saved", product });
   } catch (err) {
-    console.error("Upload Error:", err);
-    res.status(500).json({ message: "Failed to upload" });
+    console.error("Upload Error:", {
+      message: err.message,
+      stack: err.stack,
+      body: req.body,
+      file: req.file,
+    });
+    res.status(500).json({ message: "Failed to upload product", error: err.message });
   }
 });
-
 // Get All Products
 app.get("/products", async (req, res) => {
   try {
