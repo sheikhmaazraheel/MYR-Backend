@@ -6,7 +6,9 @@ const path = require("path");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
 const session = require("express-session");
+const cloudinary = require("cloudinary").v2;
 const MongoStore = require("connect-mongo");
+const fs = require("fs");
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
 
@@ -21,7 +23,12 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB Connected, State:", mongoose.connection.readyState))
   .catch(err => console.error("❌ MongoDB Error:", err));
-
+// Cloudinary Config
+  cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -157,7 +164,20 @@ app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) =>
     const colorsArray = colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [];
     const sizesArray = sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
     const image = req.file?.filename || null;
-
+    // Upload image to Cloudinary if provided
+    
+    let imageUrl = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "myr-surgical",
+      });
+      imageUrl = result.secure_url;
+      console.log("Image uploaded to Cloudinary:", imageUrl);
+      // Delete local file
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+    }
     // Create product
     const product = new Product({
       id : id.trim(),
@@ -167,7 +187,7 @@ app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) =>
       category,
       mostSell: mostSell === "true",
       available: available === "true",
-      image,
+      image:imageUrl,
       colors: colorsArray,
       sizes: sizesArray,
     });
@@ -197,25 +217,41 @@ app.get("/products", async (req, res) => {
 });
 
 // Update Product
-app.put("/products/:id", upload.single("image"), async (req, res) => {
-  const updateFields = {
-    ...req.body,
-    colors: req.body.colors?.split(",").map(c => c.trim()).filter(Boolean) || [],
-    sizes: req.body.sizes?.split(",").map(s => s.trim()).filter(Boolean) || [],
-  };
-
-  if (typeof req.body.available !== "undefined") {
-    updateFields.available = req.body.available === "true";
-  }
-  if (typeof req.body.mostSell !== "undefined") {
-    updateFields.mostSell = req.body.mostSell === "true";
-  }
-  if (req.file) updateFields.image = req.file.filename;
-
+app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, res) => {
   try {
+    const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
+
+    // Upload new image to Cloudinary if provided
+    let imageUrl = req.body.image; // Keep existing image if no new file
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "myr-surgical",
+      });
+      imageUrl = result.secure_url;
+      console.log("Image uploaded to Cloudinary:", imageUrl);
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+    }
+
+    const updateFields = {
+      id,
+      name,
+      price: parseFloat(price),
+      discount: discount ? parseFloat(discount) : 0,
+      category,
+      mostSell: mostSell === "true",
+      available: available === "true",
+      image: imageUrl,
+      colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
+      sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
+    };
+
     await Product.updateOne({ id: req.params.id }, { $set: updateFields });
+    console.log("Product updated:", { id: req.params.id });
     res.json({ message: "Product updated" });
   } catch (err) {
+    console.error("Update Error:", err);
     res.status(500).json({ message: "Update failed" });
   }
 });
@@ -265,3 +301,4 @@ app.get("/", (req, res) => res.send("Server is running ✅"));
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
+
