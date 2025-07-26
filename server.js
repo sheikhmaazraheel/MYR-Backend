@@ -245,8 +245,8 @@ app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, re
     }
 
     const updateFields = {
-      id,
-      name,
+      id : id.trim(),
+      name : name.trim(),
       price: parseFloat(price),
       discount: discount ? parseFloat(discount) : 0,
       category,
