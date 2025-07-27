@@ -7,8 +7,8 @@ const orderSchema = new mongoose.Schema({
   city: String,
   houseNo: String,
   Block: String,
-  landmark: String,
   Area: String,
+  landmark: String,
   paymentMethod: String,
   cartItems: [
     {
@@ -17,6 +17,7 @@ const orderSchema = new mongoose.Schema({
       quantity: Number,
       selectedColor: String,
       selectedSize: String,
+      image: String, // Added for thank you page
     },
   ],
   totalAmount: Number,
