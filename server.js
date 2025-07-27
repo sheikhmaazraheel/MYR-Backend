@@ -389,6 +389,19 @@ app.get("/orders/:id", async (req, res) => {
   }
 });
 
+// Delete Order
+app.delete("/orders/:id", isAuthenticated, async (req, res) => {
+  try {
+    const deleted = await Order.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Order not found" });
+    console.log("Order deleted:", { id: req.params.id });
+    res.json({ message: "Order deleted" });
+  } catch (err) {
+    console.error("Delete Order Error:", err);
+    res.status(500).json({ message: "Failed to delete order" });
+  }
+});
+
 // Admin Panel
 app.get("/admin.html", isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "admin.html"));
