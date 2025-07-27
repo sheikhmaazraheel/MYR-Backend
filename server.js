@@ -6,8 +6,8 @@ const path = require("path");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
 const session = require("express-session");
-const cloudinary = require("cloudinary").v2;
 const MongoStore = require("connect-mongo");
+const cloudinary = require("cloudinary").v2;
 const fs = require("fs");
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
@@ -18,31 +18,43 @@ const PORT = process.env.PORT || 3000;
 // Trust Render's proxy
 app.set("trust proxy", 1);
 
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Create temporary uploads directory
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("✅ Created uploads directory");
+}
+
 // MongoDB Connect
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB Connected, State:", mongoose.connection.readyState))
   .catch(err => console.error("❌ MongoDB Error:", err));
-// Cloudinary Config
-  cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Serve frontend static files
 app.use(express.static(path.join(__dirname, "..")));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Prevent caching for API responses
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  next();
+});
 
 // CORS Setup
 app.use(cors({
   origin: "https://sheikhmaazraheel.github.io",
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Cookie"],
   exposedHeaders: ["Set-Cookie"],
 }));
 
@@ -53,7 +65,7 @@ app.use((req, res, next) => {
     url: req.url,
     origin: req.get("origin"),
     cookies: req.headers.cookie || "No cookies",
-    withCredentials: req.get("withCredentials"),
+    userAgent: req.get("User-Agent"),
   });
   next();
 });
@@ -74,8 +86,9 @@ app.use(
       httpOnly: true,
       secure: true,
       sameSite: "None",
-      maxAge: 1000 * 60 * 60,
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
       path: "/",
+      domain: null, // Explicitly null for cross-origin
     },
   })
 );
@@ -92,6 +105,7 @@ function isAuthenticated(req, res, next) {
     sessionID: req.sessionID,
     loggedIn: req.session.loggedIn,
     cookies: req.headers.cookie || "No cookies",
+    userAgent: req.get("User-Agent"),
   });
   if (req.session.loggedIn) return next();
   res.status(401).json({ authenticated: false });
@@ -100,7 +114,12 @@ function isAuthenticated(req, res, next) {
 // Login Route
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  console.log("Login attempt:", { username, sessionID: req.sessionID });
+  console.log("Login attempt:", {
+    username,
+    sessionID: req.sessionID,
+    cookies: req.headers.cookie || "No cookies",
+    userAgent: req.get("User-Agent"),
+  });
   if (username === ADMIN.username) {
     const match = await bcrypt.compare(password, ADMIN.password);
     if (match) {
@@ -110,6 +129,7 @@ app.post("/login", async (req, res) => {
         session: req.session,
         setCookie: `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`,
       });
+      res.set("Set-Cookie", `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`);
       return res.json({ success: true });
     }
   }
@@ -118,9 +138,22 @@ app.post("/login", async (req, res) => {
 
 // Logout Route
 app.post("/logout", (req, res) => {
+  console.log("Logout:", {
+    sessionID: req.sessionID,
+    cookies: req.headers.cookie || "No cookies",
+    userAgent: req.get("User-Agent"),
+  });
   req.session.destroy(err => {
-    if (err) return res.status(500).json({ success: false });
-    res.clearCookie("connect.sid");
+    if (err) {
+      console.error("Logout Error:", err);
+      return res.status(500).json({ success: false });
+    }
+    res.clearCookie("connect.sid", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      path: "/",
+    });
     res.json({ success: true });
   });
 });
@@ -131,6 +164,7 @@ app.get("/check-auth", (req, res) => {
     sessionID: req.sessionID,
     loggedIn: req.session.loggedIn,
     cookies: req.headers.cookie || "No cookies",
+    userAgent: req.get("User-Agent"),
   });
   if (req.session.loggedIn) {
     return res.json({ authenticated: true });
@@ -139,7 +173,7 @@ app.get("/check-auth", (req, res) => {
   }
 });
 
-// Multer Config and other routes (unchanged)
+// Multer Config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -147,59 +181,79 @@ const storage = multer.diskStorage({
     cb(null, `${file.fieldname}-${Date.now()}${ext}`);
   },
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"));
+    }
+    cb(null, true);
+  },
+});
 
-// Upload Product (Admin only)
+// Multer Error Handler
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error("Multer Error:", err);
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "Image exceeds 10MB limit" });
+    }
+    return res.status(400).json({ message: "File upload error" });
+  }
+  next(err);
+});
+
+// Upload Product
 app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) => {
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
 
-    // Validate required fields
     if (!id || !name || !price || !category) {
       console.error("Validation Error: Missing required fields", { id, name, price, category });
       return res.status(400).json({ message: "Missing required fields: id, name, price, category" });
     }
 
-    // Process form data
-    const colorsArray = colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [];
-    const sizesArray = sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
-    const image = req.file?.filename || null;
-    // Upload image to Cloudinary if provided
-    
+    if (req.file && req.file.size > 10 * 1024 * 1024) {
+      console.error("File too large:", { size: req.file.size });
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+      return res.status(400).json({ message: "Image exceeds 10MB limit" });
+    }
+
     let imageUrl = null;
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "myr-surgical",
         transformation: [
-          { width: 800, crop: "limit" }, // Resize to 800px max width
-          { quality: "auto:good" }, // Moderate quality
-          { fetch_format: "auto" }, // WebP or JPEG
+          { width: 800, crop: "limit" },
+          { quality: "auto:good" },
+          { fetch_format: "auto" },
         ],
       });
       imageUrl = result.secure_url;
-      console.log("Image uploaded to Cloudinary:", imageUrl);
-      // Delete local file
+      console.log("Image uploaded to Cloudinary:", { url: imageUrl, size: result.bytes });
       fs.unlink(req.file.path, err => {
         if (err) console.error("Failed to delete local file:", err);
       });
     }
-    // Create product
+
     const product = new Product({
-      id : id.trim(),
-      name : name.trim(),
+      id,
+      name,
       price: parseFloat(price),
       discount: discount ? parseFloat(discount) : 0,
       category,
       mostSell: mostSell === "true",
       available: available === "true",
-      image:imageUrl,
-      colors: colorsArray,
-      sizes: sizesArray,
+      image: imageUrl,
+      colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
+      sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
     });
 
-    // Save to MongoDB
     await product.save();
-    console.log("Product saved:", { id, name });
+    console.log("Product saved:", { id, name, image: imageUrl });
     res.json({ message: "Product saved", product });
   } catch (err) {
     console.error("Upload Error:", {
@@ -208,15 +262,22 @@ app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) =>
       body: req.body,
       file: req.file,
     });
+    if (req.file) {
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+    }
     res.status(500).json({ message: "Failed to upload product", error: err.message });
   }
 });
+
 // Get All Products
 app.get("/products", async (req, res) => {
   try {
     const products = await Product.find();
     res.json(products);
   } catch (err) {
+    console.error("Products Error:", err);
     res.status(500).json({ message: "Error loading products" });
   }
 });
@@ -226,27 +287,34 @@ app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, re
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
 
-    // Upload new image to Cloudinary if provided
-    let imageUrl = req.body.image; // Keep existing image if no new file
+    if (req.file && req.file.size > 10 * 1024 * 1024) {
+      console.error("File too large:", { size: req.file.size });
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+      return res.status(400).json({ message: "Image exceeds 10MB limit" });
+    }
+
+    let imageUrl = req.body.image;
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "myr-surgical",
         transformation: [
-          { width: 800, crop: "limit" }, // Resize to 800px max width
-          { quality: "auto:good" }, // Moderate quality
-          { fetch_format: "auto" }, // WebP or JPEG
+          { width: 800, crop: "limit" },
+          { quality: "auto:good" },
+          { fetch_format: "auto" },
         ],
       });
       imageUrl = result.secure_url;
-      console.log("Image uploaded to Cloudinary:", imageUrl);
+      console.log("Image uploaded to Cloudinary:", { url: imageUrl, size: result.bytes });
       fs.unlink(req.file.path, err => {
         if (err) console.error("Failed to delete local file:", err);
       });
     }
 
     const updateFields = {
-      id : id.trim(),
-      name : name.trim(),
+      id,
+      name,
       price: parseFloat(price),
       discount: discount ? parseFloat(discount) : 0,
       category,
@@ -262,17 +330,24 @@ app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, re
     res.json({ message: "Product updated" });
   } catch (err) {
     console.error("Update Error:", err);
-    res.status(500).json({ message: "Update failed" });
+    if (req.file) {
+      fs.unlink(req.file.path, err => {
+        if (err) console.error("Failed to delete local file:", err);
+      });
+    }
+    res.status(500).json({ message: "Update failed", error: err.message });
   }
 });
 
 // Delete Product
-app.delete("/products/:id", async (req, res) => {
+app.delete("/products/:id", isAuthenticated, async (req, res) => {
   try {
     const deleted = await Product.findOneAndDelete({ id: req.params.id });
     if (!deleted) return res.status(404).json({ message: "Not found" });
+    console.log("Product deleted:", { id: req.params.id });
     res.json({ message: "Product deleted" });
   } catch (err) {
+    console.error("Delete Error:", err);
     res.status(500).json({ message: "Delete failed" });
   }
 });
@@ -282,9 +357,9 @@ app.post("/orders", async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
-    res.status(201).json({ success: true, message: "Order placed" });
+    res.status(201).json({ success: true, message: "Order placed", orderId: newOrder._id });
   } catch (err) {
-    console.error("Order error:", err);
+    console.error("Order Error:", err);
     res.status(500).json({ success: false, message: "Order failed" });
   }
 });
@@ -295,11 +370,26 @@ app.get("/orders", async (req, res) => {
     const orders = await Order.find();
     res.json(orders);
   } catch (err) {
+    console.error("Orders Error:", err);
     res.status(500).json({ message: "Fetch failed" });
   }
 });
 
-// Admin Panel (protected)
+// Get Single Order
+app.get("/orders/:id", async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.json(order);
+  } catch (err) {
+    console.error("Order Fetch Error:", err);
+    res.status(500).json({ message: "Failed to fetch order" });
+  }
+});
+
+// Admin Panel
 app.get("/admin.html", isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "admin.html"));
 });
@@ -311,4 +401,3 @@ app.get("/", (req, res) => res.send("Server is running ✅"));
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
-
