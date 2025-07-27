@@ -54,7 +54,7 @@ app.use(cors({
   origin: "https://sheikhmaazraheel.github.io",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Cookie"],
+  allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
   exposedHeaders: ["Set-Cookie"],
 }));
 
@@ -88,7 +88,7 @@ app.use(
       sameSite: "None",
       maxAge: 1000 * 60 * 60 * 24, // 1 day
       path: "/",
-      domain: null, // Explicitly null for cross-origin
+      domain: null,
     },
   })
 );
