@@ -205,7 +205,7 @@ app.use((err, req, res, next) => {
 });
 
 // Upload Product
-app.post("/upload", isAuthenticated, upload.single("image"), async (req, res) => {
+app.post("/upload", /*isAuthenticated,*/ upload.single("image"), async (req, res) => {
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
 
@@ -283,7 +283,7 @@ app.get("/products", async (req, res) => {
 });
 
 // Update Product
-app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, res) => {
+app.put("/products/:id",/*isAuthenticated,*/ upload.single("image"), async (req, res) => {
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
 
@@ -340,7 +340,7 @@ app.put("/products/:id", isAuthenticated, upload.single("image"), async (req, re
 });
 
 // Delete Product
-app.delete("/products/:id", isAuthenticated, async (req, res) => {
+app.delete("/products/:id", /*isAuthenticated,*/ async (req, res) => {
   try {
     const deleted = await Product.findOneAndDelete({ id: req.params.id });
     if (!deleted) return res.status(404).json({ message: "Not found" });
@@ -390,7 +390,7 @@ app.get("/orders/:id", async (req, res) => {
 });
 
 // Delete Order
-app.delete("/orders/:id", isAuthenticated, async (req, res) => {
+app.delete("/orders/:id", /*isAuthenticated,*/ async (req, res) => {
   try {
     const deleted = await Order.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Order not found" });
@@ -403,7 +403,7 @@ app.delete("/orders/:id", isAuthenticated, async (req, res) => {
 });
 
 // Admin Panel
-app.get("/admin.html", isAuthenticated, (req, res) => {
+app.get("/admin.html", /*isAuthenticated,*/ (req, res) => {
   res.sendFile(path.join(__dirname, "..", "admin.html"));
 });
 
