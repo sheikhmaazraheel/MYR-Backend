@@ -561,12 +561,12 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .text(`Rs. ${subtotal.toFixed(2)}`, 280, y);
     y += 15;
     doc
-      .text("Delivery Charges:", 230, y)
+      .text("Delivery Charges:", 180, y)
       .text(`Rs. ${deliveryCharges.toFixed(2)}`, 280, y);
     y += 15;
     doc
       .font("Helvetica-Bold")
-      .text("Total Amount:", 230, y)
+      .text("Total Amount:", 200, y)
       .text(`Rs. ${total.toFixed(2)}`, 280, y);
 
     // Right Column (Customer Details)
