@@ -9,6 +9,7 @@ const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cloudinary = require("cloudinary").v2;
 const fs = require("fs");
+const PDFDocument = require("pdfkit");
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
 
@@ -402,10 +403,282 @@ app.delete("/orders/:id", /*isAuthenticated,*/ async (req, res) => {
   }
 });
 
+app.get("/orders/:id/receipt", async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const doc = new PDFDocument({
+      size: "A5",
+      layout: "landscape",
+      margins: { top: 30, bottom: 30, left: 30, right: 30 },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=receipt-${orderId}.pdf`);
+
+    doc.pipe(res);
+
+    // Left Column (Order Details)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(20)
+      .fillColor("#6366f1")
+      .text("MYR SURGICAL", 30, 30);
+
+    doc
+      .fontSize(14)
+      .fillColor("#9c1f2e")
+      .text("Order Details:", 30, 60);
+
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text(`Order ID: ${orderId}`, 30, 80);
+
+    // Items Table
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor("#6366f1")
+      .text("S.No", 30, 100)
+      .text("Item Name", 60, 100)
+      .text("Quantity", 230, 100)
+      .text("Amount", 280, 100);
+
+    doc
+      .moveTo(30, 115)
+      .lineTo(330, 115)
+      .strokeColor("#f43f5e")
+      .stroke();
+
+    let y = 125;
+    order.items.forEach((item, index) => {
+      const total = item.price * item.quantity;
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("#333")
+        .text(index + 1, 30, y)
+        .text(
+          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${item.selectedColor ? ` (${item.selectedColor})` : ""}`,
+          60, y,
+          { width: 160 }
+        )
+        .text(item.quantity, 230, y)
+        .text(`Rs. ${total.toFixed(2)}`, 280, y);
+      y += 15;
+    });
+
+    // Totals
+    const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const deliveryCharges = subtotal > 0 ? 150 : 0;
+    const total = order.totalAmount;
+
+    doc
+      .moveTo(30, y)
+      .lineTo(330, y)
+      .strokeColor("#f43f5e")
+      .stroke();
+
+    y += 10;
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text("Sub Total:", 230, y)
+      .text(`Rs. ${subtotal.toFixed(2)}`, 280, y);
+    y += 15;
+    doc
+      .text("Delivery Charges:", 230, y)
+      .text(`Rs. ${deliveryCharges.toFixed(2)}`, 280, y);
+    y += 15;
+    doc
+      .font("Helvetica-Bold")
+      .text("Total Amount:", 230, y)
+      .text(`Rs. ${total.toFixed(2)}`, 280, y);
+
+    // Right Column (Customer Details)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .fillColor("#9c1f2e")
+      .text("Customer Details:", 350, 60);
+
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text(`Name: ${order.name}`, 350, 80)
+      .text(`Contact: ${order.contact}`, 350, 95)
+      .text(`Shipping Address: ${order.houseNo}, ${order.Block}, ${order.Area}`, 350, 110, { width: 200 })
+      .text(`City: ${order.city}`, 350, 140)
+      .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
+      .text(`Order ID: ${orderId}`, 350, 170)
+      .text(`Payment Method: ${order.paymentMethod}`, 350, 185);
+
+    // Footer
+    doc
+      .fontSize(8)
+      .fillColor("#444")
+      .text("Thank you for shopping with MYR Surgical!", 30, 280, { align: "center" })
+      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, { align: "center" });
+
+    doc.end();
+
+    console.log("Generated receipt for order:", { id: orderId });
+  } catch (err) {
+    console.error("Receipt generation error:", err);
+    res.status(500).json({ message: "Failed to generate receipt" });
+  }
+});
+
+// Preview Receipt PDF (Inline for browser)
+app.get("/orders/:id/receipt/preview", async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const doc = new PDFDocument({
+      size: "A5",
+      layout: "landscape",
+      margins: { top: 30, bottom: 30, left: 30, right: 30 },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename=receipt-${orderId}.pdf`);
+
+    doc.pipe(res);
+
+    // Left Column (Order Details)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(20)
+      .fillColor("#6366f1")
+      .text("MYR SURGICAL", 30, 30);
+
+    doc
+      .fontSize(14)
+      .fillColor("#9c1f2e")
+      .text("Order Details:", 30, 60);
+
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text(`Order ID: ${orderId}`, 30, 80);
+
+    // Items Table
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor("#6366f1")
+      .text("S.No", 30, 100)
+      .text("Item Name", 60, 100)
+      .text("Quantity", 230, 100)
+      .text("Amount", 280, 100);
+
+    doc
+      .moveTo(30, 115)
+      .lineTo(330, 115)
+      .strokeColor("#f43f5e")
+      .stroke();
+
+    let y = 125;
+    order.items.forEach((item, index) => {
+      const total = item.price * item.quantity;
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("#333")
+        .text(index + 1, 30, y)
+        .text(
+          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${item.selectedColor ? ` (${item.selectedColor})` : ""}`,
+          60, y,
+          { width: 160 }
+        )
+        .text(item.quantity, 230, y)
+        .text(`Rs. ${total.toFixed(2)}`, 280, y);
+      y += 15;
+    });
+
+    // Totals
+    const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const deliveryCharges = subtotal > 0 ? 150 : 0;
+    const total = order.totalAmount;
+
+    doc
+      .moveTo(30, y)
+      .lineTo(330, y)
+      .strokeColor("#f43f5e")
+      .stroke();
+
+    y += 10;
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text("Sub Total:", 230, y)
+      .text(`Rs. ${subtotal.toFixed(2)}`, 280, y);
+    y += 15;
+    doc
+      .text("Delivery Charges:", 230, y)
+      .text(`Rs. ${deliveryCharges.toFixed(2)}`, 280, y);
+    y += 15;
+    doc
+      .font("Helvetica-Bold")
+      .text("Total Amount:", 230, y)
+      .text(`Rs. ${total.toFixed(2)}`, 280, y);
+
+    // Right Column (Customer Details)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .fillColor("#9c1f2e")
+      .text("Customer Details:", 350, 60);
+
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#333")
+      .text(`Name: ${order.name}`, 350, 80)
+      .text(`Contact: ${order.contact}`, 350, 95)
+      .text(`Shipping Address: ${order.houseNo}, ${order.Block}, ${order.Area}`, 350, 110, { width: 200 })
+      .text(`City: ${order.city}`, 350, 140)
+      .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
+      .text(`Order ID: ${orderId}`, 350, 170)
+      .text(`Payment Method: ${order.paymentMethod}`, 350, 185);
+
+    // Footer
+    doc
+      .fontSize(8)
+      .fillColor("#444")
+      .text("Thank you for shopping with MYR Surgical!", 30, 280, { align: "center" })
+      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, { align: "center" });
+
+    doc.end();
+
+    console.log("Previewed receipt for order:", { id: orderId });
+  } catch (err) {
+    console.error("Receipt preview error:", err);
+    res.status(500).json({ message: "Failed to preview receipt" });
+  }
+});
+
+
 // Admin Panel
 app.get("/admin.html", /*isAuthenticated,*/ (req, res) => {
   res.sendFile(path.join(__dirname, "..", "admin.html"));
 });
+
+
 
 // Default
 app.get("/", (req, res) => res.send("Server is running ✅"));
