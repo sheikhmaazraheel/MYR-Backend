@@ -1,30 +1,27 @@
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema({
-  orderId: String,
-  name: String,
-  contact: String,
-  city: String,
-  houseNo: String,
-  Block: String,
-  Area: String,
-  landmark: String,
-  paymentMethod: String,
+  orderId: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  contact: { type: String, required: true },
+  city: { type: String, required: true },
+  houseNo: { type: String, required: true },
+  Block: { type: String, required: true },
+  Area: { type: String, required: true },
+  landmark: { type: String, required: true },
+  paymentMethod: { type: String, required: true },
   cartItems: [
     {
-      name: String,
-      price: Number,
-      quantity: Number,
-      selectedColor: String,
-      selectedSize: String,
-      image: String, // Added for thank you page
+      name: { type: String, required: true },
+      price: { type: Number, required: true },
+      quantity: { type: Number, required: true },
+      selectedColor: { type: String, default: null },
+      selectedSize: { type: String, default: null },
+      image: { type: String, default: null },
     },
   ],
-  totalAmount: Number,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+  totalAmount: { type: Number, required: true },
+  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model("Order", orderSchema);

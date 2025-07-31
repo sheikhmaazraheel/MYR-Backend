@@ -356,14 +356,60 @@ app.delete("/products/:id", /*isAuthenticated,*/ async (req, res) => {
 // Submit Order
 app.post("/orders", async (req, res) => {
   try {
-    const newOrder = new Order(req.body);
+    const orderData = req.body;
+    console.log("Received order data:", orderData);
+
+    // Validate required fields
+    const requiredFields = [
+      "orderId",
+      "name",
+      "contact",
+      "city",
+      "houseNo",
+      "Block",
+      "Area",
+      "landmark",
+      "paymentMethod",
+      "cartItems",
+      "totalAmount",
+    ];
+    for (const field of requiredFields) {
+      if (!orderData[field]) {
+        console.error("Validation Error: Missing", field);
+        return res.status(400).json({ success: false, message: `Missing required field: ${field}` });
+      }
+    }
+
+    // Validate cartItems
+    if (!Array.isArray(orderData.cartItems) || orderData.cartItems.length === 0) {
+      console.error("Validation Error: Invalid cartItems");
+      return res.status(400).json({ success: false, message: "Cart items must be a non-empty array" });
+    }
+
+    for (const item of orderData.cartItems) {
+      if (!item.name || !item.price || !item.quantity) {
+        console.error("Validation Error: Invalid cart item", item);
+        return res.status(400).json({ success: false, message: "Each cart item must have name, price, and quantity" });
+      }
+    }
+
+    // Check for duplicate orderId
+    const existingOrder = await Order.findOne({ orderId: orderData.orderId });
+    if (existingOrder) {
+      console.error("Validation Error: Duplicate orderId", orderData.orderId);
+      return res.status(400).json({ success: false, message: "Order ID already exists" });
+    }
+
+    const newOrder = new Order(orderData);
     await newOrder.save();
+    console.log("Order saved:", { id: newOrder._id, orderId: newOrder.orderId });
     res.status(201).json({ success: true, message: "Order placed", orderId: newOrder._id });
   } catch (err) {
-    console.error("Order Error:", err);
-    res.status(500).json({ success: false, message: "Order failed" });
+    console.error("Order Error:", { message: err.message, stack: err.stack });
+    res.status(500).json({ success: false, message: `Order failed: ${err.message}` });
   }
 });
+
 
 // Get All Orders
 app.get("/orders", async (req, res) => {
