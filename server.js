@@ -449,12 +449,33 @@ app.delete("/orders/:id", /*isAuthenticated,*/ async (req, res) => {
   }
 });
 
+// Health Check Endpoint
+app.get("/health", async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.status(200).json({ status: "OK", mongodb: mongoose.connection.readyState });
+  } catch (err) {
+    console.error("Health Check Error:", err);
+    res.status(503).json({ status: "ERROR", message: "MongoDB connection failed" });
+  }
+});
+
+// Generate Receipt
 app.get("/orders/:id/receipt", async (req, res) => {
   try {
     const orderId = req.params.id;
+    console.log("Generating receipt for order:", { orderId });
+
+    // Validate ObjectId
+    if (!mongoose.isValidObjectId(orderId)) {
+      console.error("Invalid ObjectId:", orderId);
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+
     const order = await Order.findById(orderId);
     if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+      console.error("Order not found:", orderId);
+      return res.status(404).json({ success: false, message: "Order not found" });
     }
 
     const doc = new PDFDocument({
@@ -503,7 +524,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .stroke();
 
     let y = 125;
-    order.items.forEach((item, index) => {
+    order.cartItems.forEach((item, index) => {
       const total = item.price * item.quantity;
       doc
         .font("Helvetica")
@@ -521,7 +542,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
     });
 
     // Totals
-    const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = order.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const deliveryCharges = subtotal > 0 ? 150 : 0;
     const total = order.totalAmount;
 
@@ -559,13 +580,13 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#333")
-      .text(`Name: ${order.name}`, 350, 80)
-      .text(`Contact: ${order.contact}`, 350, 95)
-      .text(`Shipping Address: ${order.houseNo}, ${order.Block}, ${order.Area}`, 350, 110, { width: 200 })
-      .text(`City: ${order.city}`, 350, 140)
+      .text(`Name: ${order.name || "N/A"}`, 350, 80)
+      .text(`Contact: ${order.contact || "N/A"}`, 350, 95)
+      .text(`Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${order.Area || ""}`, 350, 110, { width: 200 })
+      .text(`City: ${order.city || "N/A"}`, 350, 140)
       .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
       .text(`Order ID: ${orderId}`, 350, 170)
-      .text(`Payment Method: ${order.paymentMethod}`, 350, 185);
+      .text(`Payment Method: ${order.paymentMethod || "N/A"}`, 350, 185);
 
     // Footer
     doc
@@ -578,8 +599,8 @@ app.get("/orders/:id/receipt", async (req, res) => {
 
     console.log("Generated receipt for order:", { id: orderId });
   } catch (err) {
-    console.error("Receipt generation error:", err);
-    res.status(500).json({ message: "Failed to generate receipt" });
+    console.error("Receipt generation error:", { message: err.message, stack: err.stack });
+    res.status(500).json({ success: false, message: `Failed to generate receipt: ${err.message}` });
   }
 });
 
@@ -587,9 +608,18 @@ app.get("/orders/:id/receipt", async (req, res) => {
 app.get("/orders/:id/receipt/preview", async (req, res) => {
   try {
     const orderId = req.params.id;
+    console.log("Previewing receipt for order:", { orderId });
+
+    // Validate ObjectId
+    if (!mongoose.isValidObjectId(orderId)) {
+      console.error("Invalid ObjectId:", orderId);
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+
     const order = await Order.findById(orderId);
     if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+      console.error("Order not found:", orderId);
+      return res.status(404).json({ success: false, message: "Order not found" });
     }
 
     const doc = new PDFDocument({
@@ -638,7 +668,7 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       .stroke();
 
     let y = 125;
-    order.items.forEach((item, index) => {
+    order.cartItems.forEach((item, index) => {
       const total = item.price * item.quantity;
       doc
         .font("Helvetica")
@@ -656,7 +686,7 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     });
 
     // Totals
-    const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = order.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const deliveryCharges = subtotal > 0 ? 150 : 0;
     const total = order.totalAmount;
 
@@ -694,13 +724,13 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#333")
-      .text(`Name: ${order.name}`, 350, 80)
-      .text(`Contact: ${order.contact}`, 350, 95)
-      .text(`Shipping Address: ${order.houseNo}, ${order.Block}, ${order.Area}`, 350, 110, { width: 200 })
-      .text(`City: ${order.city}`, 350, 140)
+      .text(`Name: ${order.name || "N/A"}`, 350, 80)
+      .text(`Contact: ${order.contact || "N/A"}`, 350, 95)
+      .text(`Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${order.Area || ""}`, 350, 110, { width: 200 })
+      .text(`City: ${order.city || "N/A"}`, 350, 140)
       .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
       .text(`Order ID: ${orderId}`, 350, 170)
-      .text(`Payment Method: ${order.paymentMethod}`, 350, 185);
+      .text(`Payment Method: ${order.paymentMethod || "N/A"}`, 350, 185);
 
     // Footer
     doc
@@ -713,11 +743,10 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
 
     console.log("Previewed receipt for order:", { id: orderId });
   } catch (err) {
-    console.error("Receipt preview error:", err);
-    res.status(500).json({ message: "Failed to preview receipt" });
+    console.error("Receipt preview error:", { message: err.message, stack: err.stack });
+    res.status(500).json({ success: false, message: `Failed to preview receipt: ${err.message}` });
   }
 });
-
 
 // Admin Panel
 app.get("/admin.html", /*isAuthenticated,*/ (req, res) => {
