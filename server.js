@@ -561,7 +561,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .text(`Rs. ${subtotal.toFixed(2)}`, 280, y);
     y += 15;
     doc
-      .text("Delivery Charges:", 190, y)
+      .text("Delivery Charges:", 192, y)
       .text(`Rs. ${deliveryCharges.toFixed(2)}`, 280, y);
     y += 15;
     doc
