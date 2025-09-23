@@ -209,6 +209,7 @@ app.use((err, req, res, next) => {
 app.post("/upload", /*isAuthenticated,*/ upload.single("image"), async (req, res) => {
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
+    const { description } = req.body;
 
     if (!id || !name || !price || !category) {
       console.error("Validation Error: Missing required fields", { id, name, price, category });
@@ -251,6 +252,7 @@ app.post("/upload", /*isAuthenticated,*/ upload.single("image"), async (req, res
       image: imageUrl,
       colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
       sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
+      description: description || ""
     });
 
     await product.save();
@@ -287,6 +289,7 @@ app.get("/products", async (req, res) => {
 app.put("/products/:id",/*isAuthenticated,*/ upload.single("image"), async (req, res) => {
   try {
     const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
+    const { description } = req.body;
 
     if (req.file && req.file.size > 10 * 1024 * 1024) {
       console.error("File too large:", { size: req.file.size });
@@ -324,6 +327,7 @@ app.put("/products/:id",/*isAuthenticated,*/ upload.single("image"), async (req,
       image: imageUrl,
       colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
       sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
+      description: description || ""
     };
 
     await Product.updateOne({ id: req.params.id }, { $set: updateFields });
