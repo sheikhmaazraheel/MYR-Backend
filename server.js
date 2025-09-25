@@ -36,8 +36,10 @@ if (!fs.existsSync(uploadDir)) {
 // MongoDB Connect
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("✅ MongoDB Connected, State:", mongoose.connection.readyState))
-  .catch(err => console.error("❌ MongoDB Error:", err));
+  .then(() =>
+    console.log("✅ MongoDB Connected, State:", mongoose.connection.readyState)
+  )
+  .catch((err) => console.error("❌ MongoDB Error:", err));
 
 // Middleware
 app.use(express.json());
@@ -51,13 +53,15 @@ app.use((req, res, next) => {
 });
 
 // CORS Setup
-app.use(cors({
-  origin: "https://sheikhmaazraheel.github.io",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
-  exposedHeaders: ["Set-Cookie"],
-}));
+app.use(
+  cors({
+    origin: "https://sheikhmaazraheel.github.io",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
+    exposedHeaders: ["Set-Cookie"],
+  })
+);
 
 // Log all requests
 app.use((req, res, next) => {
@@ -130,7 +134,10 @@ app.post("/login", async (req, res) => {
         session: req.session,
         setCookie: `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`,
       });
-      res.set("Set-Cookie", `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`);
+      res.set(
+        "Set-Cookie",
+        `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`
+      );
       return res.json({ success: true });
     }
   }
@@ -144,7 +151,7 @@ app.post("/logout", (req, res) => {
     cookies: req.headers.cookie || "No cookies",
     userAgent: req.get("User-Agent"),
   });
-  req.session.destroy(err => {
+  req.session.destroy((err) => {
     if (err) {
       console.error("Logout Error:", err);
       return res.status(500).json({ success: false });
@@ -191,7 +198,7 @@ const upload = multer({
     }
     cb(null, true);
   },
-});
+}).array("images", 10);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {
@@ -206,73 +213,131 @@ app.use((err, req, res, next) => {
 });
 
 // Upload Product
-app.post("/upload", /*isAuthenticated,*/ upload.single("image"), async (req, res) => {
-  try {
-    const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
-    const { description } = req.body;
+app.post(
+  "/upload",
+  /*isAuthenticated,*/ upload.array("images", 10),
+  async (req, res) => {
+    try {
+      const {
+        id,
+        name,
+        price,
+        discount,
+        category,
+        mostSell,
+        available,
+        colors,
+        sizes,
+        description,
+      } = req.body;
 
-    if (!id || !name || !price || !category) {
-      console.error("Validation Error: Missing required fields", { id, name, price, category });
-      return res.status(400).json({ message: "Missing required fields: id, name, price, category" });
-    }
+      // Validate required fields
+      if (!id || !name || !price || !category) {
+        console.error("Validation Error: Missing required fields", {
+          id,
+          name,
+          price,
+          category,
+        });
+        return res
+          .status(400)
+          .json({
+            message: "Missing required fields: id, name, price, category",
+          });
+      }
 
-    if (req.file && req.file.size > 10 * 1024 * 1024) {
-      console.error("File too large:", { size: req.file.size });
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
+      // Handle multiple image uploads
+      const imageUrls = [];
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          if (file.size > 10 * 1024 * 1024) {
+            console.error("File too large:", {
+              filename: file.originalname,
+              size: file.size,
+            });
+            // Clean up all uploaded files on error
+            req.files.forEach((f) =>
+              fs.unlink(f.path, (err) => {
+                if (err) console.error("Failed to delete local file:", err);
+              })
+            );
+            return res
+              .status(400)
+              .json({ message: "One or more images exceed 10MB limit" });
+          }
+
+          const result = await cloudinary.uploader.upload(file.path, {
+            folder: "myr-surgical",
+            transformation: [
+              { width: 800, crop: "limit" },
+              { quality: "auto:good" },
+              { fetch_format: "auto" },
+            ],
+          });
+          imageUrls.push(result.secure_url);
+          console.log("Image uploaded to Cloudinary:", {
+            url: result.secure_url,
+            size: result.bytes,
+          });
+          fs.unlink(file.path, (err) => {
+            if (err) console.error("Failed to delete local file:", err);
+          });
+        }
+      } else {
+        console.warn("No images uploaded");
+      }
+
+      // Create and save product
+      const product = new Product({
+        id,
+        name,
+        price: parseFloat(price),
+        discount: discount ? parseFloat(discount) : 0,
+        category,
+        mostSell: mostSell === "true",
+        available: available === "true",
+        images: imageUrls, // Use array of image URLs
+        colors: colors
+          ? colors
+              .split(",")
+              .map((c) => c.trim())
+              .filter(Boolean)
+          : [],
+        sizes: sizes
+          ? sizes
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        description: description || "",
       });
-      return res.status(400).json({ message: "Image exceeds 10MB limit" });
-    }
 
-    let imageUrl = null;
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "myr-surgical",
-        transformation: [
-          { width: 800, crop: "limit" },
-          { quality: "auto:good" },
-          { fetch_format: "auto" },
-        ],
+      await product.save();
+      console.log("Product saved:", { id, name, images: imageUrls });
+      res.json({ message: "Product saved", product });
+    } catch (err) {
+      console.error("Upload Error:", {
+        message: err.message,
+        stack: err.stack,
+        body: req.body,
+        files:
+          req.files?.map((f) => ({ filename: f.originalname, size: f.size })) ||
+          [],
       });
-      imageUrl = result.secure_url;
-      console.log("Image uploaded to Cloudinary:", { url: imageUrl, size: result.bytes });
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
-      });
+      // Clean up any uploaded files on error
+      if (req.files) {
+        req.files.forEach((f) =>
+          fs.unlink(f.path, (err) => {
+            if (err) console.error("Failed to delete local file:", err);
+          })
+        );
+      }
+      res
+        .status(500)
+        .json({ message: "Failed to upload product", error: err.message });
     }
-
-    const product = new Product({
-      id,
-      name,
-      price: parseFloat(price),
-      discount: discount ? parseFloat(discount) : 0,
-      category,
-      mostSell: mostSell === "true",
-      available: available === "true",
-      image: imageUrl,
-      colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
-      sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
-      description: description || ""
-    });
-
-    await product.save();
-    console.log("Product saved:", { id, name, image: imageUrl });
-    res.json({ message: "Product saved", product });
-  } catch (err) {
-    console.error("Upload Error:", {
-      message: err.message,
-      stack: err.stack,
-      body: req.body,
-      file: req.file,
-    });
-    if (req.file) {
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
-      });
-    }
-    res.status(500).json({ message: "Failed to upload product", error: err.message });
   }
-});
+);
 
 // Get All Products
 app.get("/products", async (req, res) => {
@@ -286,76 +351,164 @@ app.get("/products", async (req, res) => {
 });
 
 // Update Product
-app.put("/products/:id",/*isAuthenticated,*/ upload.single("image"), async (req, res) => {
-  try {
-    const { id, name, price, discount, category, mostSell, available, colors, sizes } = req.body;
-    const { description } = req.body;
+app.put(
+  "/products/:id",
+  /*isAuthenticated,*/ upload.array("images", 10),
+  async (req, res) => {
+    try {
+      const {
+        id,
+        name,
+        price,
+        discount,
+        category,
+        mostSell,
+        available,
+        colors,
+        sizes,
+        description,
+      } = req.body;
 
-    if (req.file && req.file.size > 10 * 1024 * 1024) {
-      console.error("File too large:", { size: req.file.size });
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
+      // Validate required fields
+      if (!id || !name || !price || !category) {
+        console.error("Validation Error: Missing required fields", {
+          id,
+          name,
+          price,
+          category,
+        });
+        return res
+          .status(400)
+          .json({
+            message: "Missing required fields: id, name, price, category",
+          });
+      }
+
+      // Fetch existing product to get old images (for potential deletion)
+      const existingProduct = await Product.findOne({ id: req.params.id });
+      if (!existingProduct) {
+        console.error("Product not found:", { id: req.params.id });
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      // Handle multiple image uploads
+      let imageUrls = existingProduct.images || []; // Preserve existing images if no new uploads
+      if (req.files && req.files.length > 0) {
+        // Optionally delete old images from Cloudinary
+        if (existingProduct.images && existingProduct.images.length > 0) {
+          for (const imageUrl of existingProduct.images) {
+            const publicId = imageUrl.split("/").pop().split(".")[0]; // Extract public ID from URL
+            await cloudinary.uploader.destroy(`myr-surgical/${publicId}`);
+            console.log("Deleted old image from Cloudinary:", { publicId });
+          }
+        }
+
+        // Upload new images
+        imageUrls = [];
+        for (const file of req.files) {
+          if (file.size > 10 * 1024 * 1024) {
+            console.error("File too large:", {
+              filename: file.originalname,
+              size: file.size,
+            });
+            // Clean up all uploaded files on error
+            req.files.forEach((f) =>
+              fs.unlink(f.path, (err) => {
+                if (err) console.error("Failed to delete local file:", err);
+              })
+            );
+            return res
+              .status(400)
+              .json({ message: "One or more images exceed 10MB limit" });
+          }
+
+          const result = await cloudinary.uploader.upload(file.path, {
+            folder: "myr-surgical",
+            transformation: [
+              { width: 800, crop: "limit" },
+              { quality: "auto:good" },
+              { fetch_format: "auto" },
+            ],
+          });
+          imageUrls.push(result.secure_url);
+          console.log("Image uploaded to Cloudinary:", {
+            url: result.secure_url,
+            size: result.bytes,
+          });
+          fs.unlink(file.path, (err) => {
+            if (err) console.error("Failed to delete local file:", err);
+          });
+        }
+      } else {
+        console.warn("No new images uploaded, retaining existing images");
+      }
+
+      // Prepare update fields
+      const updateFields = {
+        id,
+        name,
+        price: parseFloat(price),
+        discount: discount ? parseFloat(discount) : 0,
+        category,
+        mostSell: mostSell === "true",
+        available: available === "true",
+        images: imageUrls, // Use array of image URLs
+        colors: colors
+          ? colors
+              .split(",")
+              .map((c) => c.trim())
+              .filter(Boolean)
+          : [],
+        sizes: sizes
+          ? sizes
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        description: description || "",
+      };
+
+      // Update product
+      await Product.updateOne({ id: req.params.id }, { $set: updateFields });
+      console.log("Product updated:", { id: req.params.id, images: imageUrls });
+      res.json({ message: "Product updated", product: updateFields });
+    } catch (err) {
+      console.error("Update Error:", {
+        message: err.message,
+        stack: err.stack,
+        body: req.body,
+        files:
+          req.files?.map((f) => ({ filename: f.originalname, size: f.size })) ||
+          [],
       });
-      return res.status(400).json({ message: "Image exceeds 10MB limit" });
+      // Clean up any uploaded files on error
+      if (req.files) {
+        req.files.forEach((f) =>
+          fs.unlink(f.path, (err) => {
+            if (err) console.error("Failed to delete local file:", err);
+          })
+        );
+      }
+      res.status(500).json({ message: "Update failed", error: err.message });
     }
-
-    let imageUrl = req.body.image;
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "myr-surgical",
-        transformation: [
-          { width: 800, crop: "limit" },
-          { quality: "auto:good" },
-          { fetch_format: "auto" },
-        ],
-      });
-      imageUrl = result.secure_url;
-      console.log("Image uploaded to Cloudinary:", { url: imageUrl, size: result.bytes });
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
-      });
-    }
-
-    const updateFields = {
-      id,
-      name,
-      price: parseFloat(price),
-      discount: discount ? parseFloat(discount) : 0,
-      category,
-      mostSell: mostSell === "true",
-      available: available === "true",
-      image: imageUrl,
-      colors: colors ? colors.split(",").map(c => c.trim()).filter(Boolean) : [],
-      sizes: sizes ? sizes.split(",").map(s => s.trim()).filter(Boolean) : [],
-      description: description || ""
-    };
-
-    await Product.updateOne({ id: req.params.id }, { $set: updateFields });
-    console.log("Product updated:", { id: req.params.id });
-    res.json({ message: "Product updated" });
-  } catch (err) {
-    console.error("Update Error:", err);
-    if (req.file) {
-      fs.unlink(req.file.path, err => {
-        if (err) console.error("Failed to delete local file:", err);
-      });
-    }
-    res.status(500).json({ message: "Update failed", error: err.message });
   }
-});
+);
 
 // Delete Product
-app.delete("/products/:id", /*isAuthenticated,*/ async (req, res) => {
-  try {
-    const deleted = await Product.findOneAndDelete({ id: req.params.id });
-    if (!deleted) return res.status(404).json({ message: "Not found" });
-    console.log("Product deleted:", { id: req.params.id });
-    res.json({ message: "Product deleted" });
-  } catch (err) {
-    console.error("Delete Error:", err);
-    res.status(500).json({ message: "Delete failed" });
+app.delete(
+  "/products/:id",
+  /*isAuthenticated,*/ async (req, res) => {
+    try {
+      const deleted = await Product.findOneAndDelete({ id: req.params.id });
+      if (!deleted) return res.status(404).json({ message: "Not found" });
+      console.log("Product deleted:", { id: req.params.id });
+      res.json({ message: "Product deleted" });
+    } catch (err) {
+      console.error("Delete Error:", err);
+      res.status(500).json({ message: "Delete failed" });
+    }
   }
-});
+);
 
 // Submit Order
 app.post("/orders", async (req, res) => {
@@ -380,20 +533,38 @@ app.post("/orders", async (req, res) => {
     for (const field of requiredFields) {
       if (!orderData[field]) {
         console.error("Validation Error: Missing", field);
-        return res.status(400).json({ success: false, message: `Missing required field: ${field}` });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: `Missing required field: ${field}`,
+          });
       }
     }
 
     // Validate cartItems
-    if (!Array.isArray(orderData.cartItems) || orderData.cartItems.length === 0) {
+    if (
+      !Array.isArray(orderData.cartItems) ||
+      orderData.cartItems.length === 0
+    ) {
       console.error("Validation Error: Invalid cartItems");
-      return res.status(400).json({ success: false, message: "Cart items must be a non-empty array" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Cart items must be a non-empty array",
+        });
     }
 
     for (const item of orderData.cartItems) {
       if (!item.name || !item.price || !item.quantity) {
         console.error("Validation Error: Invalid cart item", item);
-        return res.status(400).json({ success: false, message: "Each cart item must have name, price, and quantity" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Each cart item must have name, price, and quantity",
+          });
       }
     }
 
@@ -401,19 +572,27 @@ app.post("/orders", async (req, res) => {
     const existingOrder = await Order.findOne({ orderId: orderData.orderId });
     if (existingOrder) {
       console.error("Validation Error: Duplicate orderId", orderData.orderId);
-      return res.status(400).json({ success: false, message: "Order ID already exists" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Order ID already exists" });
     }
 
     const newOrder = new Order(orderData);
     await newOrder.save();
-    console.log("Order saved:", { id: newOrder._id, orderId: newOrder.orderId });
-    res.status(201).json({ success: true, message: "Order placed", orderId: newOrder._id });
+    console.log("Order saved:", {
+      id: newOrder._id,
+      orderId: newOrder.orderId,
+    });
+    res
+      .status(201)
+      .json({ success: true, message: "Order placed", orderId: newOrder._id });
   } catch (err) {
     console.error("Order Error:", { message: err.message, stack: err.stack });
-    res.status(500).json({ success: false, message: `Order failed: ${err.message}` });
+    res
+      .status(500)
+      .json({ success: false, message: `Order failed: ${err.message}` });
   }
 });
-
 
 // Get All Orders
 app.get("/orders", async (req, res) => {
@@ -441,26 +620,33 @@ app.get("/orders/:id", async (req, res) => {
 });
 
 // Delete Order
-app.delete("/orders/:id", /*isAuthenticated,*/ async (req, res) => {
-  try {
-    const deleted = await Order.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: "Order not found" });
-    console.log("Order deleted:", { id: req.params.id });
-    res.json({ message: "Order deleted" });
-  } catch (err) {
-    console.error("Delete Order Error:", err);
-    res.status(500).json({ message: "Failed to delete order" });
+app.delete(
+  "/orders/:id",
+  /*isAuthenticated,*/ async (req, res) => {
+    try {
+      const deleted = await Order.findByIdAndDelete(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Order not found" });
+      console.log("Order deleted:", { id: req.params.id });
+      res.json({ message: "Order deleted" });
+    } catch (err) {
+      console.error("Delete Order Error:", err);
+      res.status(500).json({ message: "Failed to delete order" });
+    }
   }
-});
+);
 
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
   try {
     await mongoose.connection.db.admin().ping();
-    res.status(200).json({ status: "OK", mongodb: mongoose.connection.readyState });
+    res
+      .status(200)
+      .json({ status: "OK", mongodb: mongoose.connection.readyState });
   } catch (err) {
     console.error("Health Check Error:", err);
-    res.status(503).json({ status: "ERROR", message: "MongoDB connection failed" });
+    res
+      .status(503)
+      .json({ status: "ERROR", message: "MongoDB connection failed" });
   }
 });
 
@@ -473,13 +659,17 @@ app.get("/orders/:id/receipt", async (req, res) => {
     // Validate ObjectId
     if (!mongoose.isValidObjectId(orderId)) {
       console.error("Invalid ObjectId:", orderId);
-      return res.status(400).json({ success: false, message: "Invalid order ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid order ID" });
     }
 
     const order = await Order.findById(orderId);
     if (!order) {
       console.error("Order not found:", orderId);
-      return res.status(404).json({ success: false, message: "Order not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
     }
 
     const doc = new PDFDocument({
@@ -489,7 +679,10 @@ app.get("/orders/:id/receipt", async (req, res) => {
     });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=receipt-${orderId}.pdf`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=receipt-${orderId}.pdf`
+    );
 
     doc.pipe(res);
 
@@ -500,10 +693,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .fillColor("#6366f1")
       .text("MYR SURGICAL", 30, 30);
 
-    doc
-      .fontSize(14)
-      .fillColor("#9c1f2e")
-      .text("Order Details:", 30, 60);
+    doc.fontSize(14).fillColor("#9c1f2e").text("Order Details:", 30, 60);
 
     doc
       .font("Helvetica")
@@ -521,11 +711,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .text("Quantity", 230, 100)
       .text("Amount", 280, 100);
 
-    doc
-      .moveTo(30, 115)
-      .lineTo(330, 115)
-      .strokeColor("#f43f5e")
-      .stroke();
+    doc.moveTo(30, 115).lineTo(330, 115).strokeColor("#f43f5e").stroke();
 
     let y = 125;
     order.cartItems.forEach((item, index) => {
@@ -536,8 +722,11 @@ app.get("/orders/:id/receipt", async (req, res) => {
         .fillColor("#333")
         .text(index + 1, 30, y)
         .text(
-          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${item.selectedColor ? ` (${item.selectedColor})` : ""}`,
-          60, y,
+          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${
+            item.selectedColor ? ` (${item.selectedColor})` : ""
+          }`,
+          60,
+          y,
           { width: 160 }
         )
         .text(item.quantity, 230, y)
@@ -546,15 +735,14 @@ app.get("/orders/:id/receipt", async (req, res) => {
     });
 
     // Totals
-    const subtotal = order.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = order.cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
     const deliveryCharges = subtotal > 0 ? 150 : 0;
     const total = order.totalAmount;
 
-    doc
-      .moveTo(30, y)
-      .lineTo(330, y)
-      .strokeColor("#f43f5e")
-      .stroke();
+    doc.moveTo(30, y).lineTo(330, y).strokeColor("#f43f5e").stroke();
 
     y += 10;
     doc
@@ -586,9 +774,20 @@ app.get("/orders/:id/receipt", async (req, res) => {
       .fillColor("#333")
       .text(`Name: ${order.name || "N/A"}`, 350, 80)
       .text(`Contact: ${order.contact || "N/A"}`, 350, 95)
-      .text(`Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${order.Area || ""}`, 350, 110, { width: 200 })
+      .text(
+        `Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${
+          order.Area || ""
+        }`,
+        350,
+        110,
+        { width: 200 }
+      )
       .text(`City: ${order.city || "N/A"}`, 350, 140)
-      .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
+      .text(
+        `Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`,
+        350,
+        155
+      )
       .text(`Order ID: ${orderId}`, 350, 170)
       .text(`Payment Method: ${order.paymentMethod || "N/A"}`, 350, 185);
 
@@ -596,15 +795,27 @@ app.get("/orders/:id/receipt", async (req, res) => {
     doc
       .fontSize(8)
       .fillColor("#444")
-      .text("Thank you for shopping with MYR Surgical!", 30, 280, { align: "center" })
-      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, { align: "center" });
+      .text("Thank you for shopping with MYR Surgical!", 30, 280, {
+        align: "center",
+      })
+      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, {
+        align: "center",
+      });
 
     doc.end();
 
     console.log("Generated receipt for order:", { id: orderId });
   } catch (err) {
-    console.error("Receipt generation error:", { message: err.message, stack: err.stack });
-    res.status(500).json({ success: false, message: `Failed to generate receipt: ${err.message}` });
+    console.error("Receipt generation error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: `Failed to generate receipt: ${err.message}`,
+      });
   }
 });
 
@@ -617,13 +828,17 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     // Validate ObjectId
     if (!mongoose.isValidObjectId(orderId)) {
       console.error("Invalid ObjectId:", orderId);
-      return res.status(400).json({ success: false, message: "Invalid order ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid order ID" });
     }
 
     const order = await Order.findById(orderId);
     if (!order) {
       console.error("Order not found:", orderId);
-      return res.status(404).json({ success: false, message: "Order not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
     }
 
     const doc = new PDFDocument({
@@ -633,7 +848,10 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=receipt-${orderId}.pdf`);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename=receipt-${orderId}.pdf`
+    );
 
     doc.pipe(res);
 
@@ -644,10 +862,7 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       .fillColor("#6366f1")
       .text("MYR SURGICAL", 30, 30);
 
-    doc
-      .fontSize(14)
-      .fillColor("#9c1f2e")
-      .text("Order Details:", 30, 60);
+    doc.fontSize(14).fillColor("#9c1f2e").text("Order Details:", 30, 60);
 
     doc
       .font("Helvetica")
@@ -665,11 +880,7 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       .text("Quantity", 230, 100)
       .text("Amount", 280, 100);
 
-    doc
-      .moveTo(30, 115)
-      .lineTo(330, 115)
-      .strokeColor("#f43f5e")
-      .stroke();
+    doc.moveTo(30, 115).lineTo(330, 115).strokeColor("#f43f5e").stroke();
 
     let y = 125;
     order.cartItems.forEach((item, index) => {
@@ -680,8 +891,11 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
         .fillColor("#333")
         .text(index + 1, 30, y)
         .text(
-          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${item.selectedColor ? ` (${item.selectedColor})` : ""}`,
-          60, y,
+          `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${
+            item.selectedColor ? ` (${item.selectedColor})` : ""
+          }`,
+          60,
+          y,
           { width: 160 }
         )
         .text(item.quantity, 230, y)
@@ -690,15 +904,14 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     });
 
     // Totals
-    const subtotal = order.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = order.cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
     const deliveryCharges = subtotal > 0 ? 150 : 0;
     const total = order.totalAmount;
 
-    doc
-      .moveTo(30, y)
-      .lineTo(330, y)
-      .strokeColor("#f43f5e")
-      .stroke();
+    doc.moveTo(30, y).lineTo(330, y).strokeColor("#f43f5e").stroke();
 
     y += 10;
     doc
@@ -730,9 +943,20 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       .fillColor("#333")
       .text(`Name: ${order.name || "N/A"}`, 350, 80)
       .text(`Contact: ${order.contact || "N/A"}`, 350, 95)
-      .text(`Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${order.Area || ""}`, 350, 110, { width: 200 })
+      .text(
+        `Shipping Address: ${order.houseNo || ""}, ${order.Block || ""}, ${
+          order.Area || ""
+        }`,
+        350,
+        110,
+        { width: 200 }
+      )
       .text(`City: ${order.city || "N/A"}`, 350, 140)
-      .text(`Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`, 350, 155)
+      .text(
+        `Date of Order: ${new Date(order.createdAt).toLocaleDateString()}`,
+        350,
+        155
+      )
       .text(`Order ID: ${orderId}`, 350, 170)
       .text(`Payment Method: ${order.paymentMethod || "N/A"}`, 350, 185);
 
@@ -740,24 +964,37 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     doc
       .fontSize(8)
       .fillColor("#444")
-      .text("Thank you for shopping with MYR Surgical!", 30, 280, { align: "center" })
-      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, { align: "center" });
+      .text("Thank you for shopping with MYR Surgical!", 30, 280, {
+        align: "center",
+      })
+      .text("© 2025 MYR Surgical. All rights reserved.", 30, 290, {
+        align: "center",
+      });
 
     doc.end();
 
     console.log("Previewed receipt for order:", { id: orderId });
   } catch (err) {
-    console.error("Receipt preview error:", { message: err.message, stack: err.stack });
-    res.status(500).json({ success: false, message: `Failed to preview receipt: ${err.message}` });
+    console.error("Receipt preview error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: `Failed to preview receipt: ${err.message}`,
+      });
   }
 });
 
 // Admin Panel
-app.get("/admin.html", /*isAuthenticated,*/ (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "admin.html"));
-});
-
-
+app.get(
+  "/admin.html",
+  /*isAuthenticated,*/ (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "admin.html"));
+  }
+);
 
 // Default
 app.get("/", (req, res) => res.send("Server is running ✅"));
