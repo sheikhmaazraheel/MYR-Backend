@@ -55,7 +55,7 @@ app.use((req, res, next) => {
 // CORS Setup
 app.use(
   cors({
-    origin: "https://sheikhmaazraheel.github.io",
+    origin: "https://www.myrsurgical.com",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
