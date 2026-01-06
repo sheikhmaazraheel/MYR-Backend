@@ -44,7 +44,6 @@ mongoose
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "..")));
 
 // Prevent caching for API responses
 app.use((req, res, next) => {
@@ -55,7 +54,10 @@ app.use((req, res, next) => {
 // CORS Setup
 app.use(
   cors({
-    origin: "https://www.myrsurgical.com",
+    origin: [
+  "https://www.myrsurgical.com",
+  "https://myrsurgical.com"
+],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
@@ -129,19 +131,11 @@ app.post("/login", async (req, res) => {
     const match = await bcrypt.compare(password, ADMIN.password);
     if (match) {
       req.session.loggedIn = true;
-      console.log("Session set:", {
-        sessionID: req.sessionID,
-        session: req.session,
-        setCookie: `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`,
-      });
-      res.set(
-        "Set-Cookie",
-        `connect.sid=${req.sessionID}; HttpOnly; Secure; SameSite=None; Path=/`
-      );
       return res.json({ success: true });
     }
   }
-  res.json({ success: false, message: "Invalid credentials" });
+
+  res.status(401).json({ success: false, message: "Invalid credentials" });
 });
 
 // Logout Route
