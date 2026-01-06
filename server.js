@@ -12,6 +12,7 @@ const fs = require("fs");
 const PDFDocument = require("pdfkit");
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
+const axios = require("axios");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -574,6 +575,7 @@ app.post("/orders", async (req, res) => {
 
     const newOrder = new Order(orderData);
     await newOrder.save();
+    await sendWhatsAppOrderNotification(newOrder);
     console.log("Order saved:", {
       id: newOrder._id,
       orderId: newOrder.orderId,
@@ -983,6 +985,40 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       });
   }
 });
+
+
+async function sendWhatsAppOrderNotification(order) {
+  const message = `
+🛒 *New Order Received*
+
+🆔 Order ID: ${order.orderId}
+👤 Name: ${order.name}
+📞 Contact: ${order.contact}
+🏙 City: ${order.city}
+💰 Total: Rs. ${order.totalAmount}
+💳 Payment: ${order.paymentMethod}
+
+📦 Items: ${order.cartItems.length}
+
+Login to admin panel for details.
+`;
+
+  await axios.post(
+    `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to: process.env.ADMIN_PHONE,
+      type: "text",
+      text: { body: message },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
 
 // Admin Panel
 app.get(
