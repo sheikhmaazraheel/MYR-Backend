@@ -209,7 +209,7 @@ app.use((err, req, res, next) => {
 // Upload Product
 app.post(
   "/upload",
-  /*isAuthenticated,*/ upload.array("images", 10),
+  isAuthenticated, upload.array("images", 10),
   async (req, res) => {
     try {
       const {
@@ -347,7 +347,7 @@ app.get("/products", async (req, res) => {
 // Update Product
 app.put(
   "/products/:id",
-  /*isAuthenticated,*/ upload.array("images", 10),
+  isAuthenticated, upload.array("images", 10),
   async (req, res) => {
     try {
       const {
@@ -491,7 +491,7 @@ app.put(
 // Delete Product
 app.delete(
   "/products/:id",
-  /*isAuthenticated,*/ async (req, res) => {
+  isAuthenticated, async (req, res) => {
     try {
       const deleted = await Product.findOneAndDelete({ id: req.params.id });
       if (!deleted) return res.status(404).json({ message: "Not found" });
@@ -616,7 +616,8 @@ app.get("/orders/:id", async (req, res) => {
 // Delete Order
 app.delete(
   "/orders/:id",
-  /*isAuthenticated,*/ async (req, res) => {
+  isAuthenticated,
+  async (req, res) => {
     try {
       const deleted = await Order.findByIdAndDelete(req.params.id);
       if (!deleted) return res.status(404).json({ message: "Order not found" });
@@ -985,7 +986,7 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
 // Admin Panel
 app.get(
   "/admin.html",
-  /*isAuthenticated,*/ (req, res) => {
+  isAuthenticated, (req, res) => {
     res.sendFile(path.join(__dirname, "..", "admin.html"));
   }
 );
