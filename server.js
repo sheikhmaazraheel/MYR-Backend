@@ -88,12 +88,13 @@ app.use(
     secret: process.env.SESSION_SECRET || "default_secret",
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     store: sessionStore,
     cookie: {
       httpOnly: true,
       secure: true,
       sameSite: "None",
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
+      maxAge: 1000 * 60 * 60 * 1, // 1 hours
       path: "/",
       domain: null,
     },
