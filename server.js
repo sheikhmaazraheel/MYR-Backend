@@ -16,7 +16,15 @@ const axios = require("axios");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const nodemailer = require("nodemailer");
 
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 // Trust Render's proxy
 app.set("trust proxy", 1);
 
@@ -575,6 +583,7 @@ app.post("/orders", async (req, res) => {
 
     const newOrder = new Order(orderData);
     await newOrder.save();
+    await sendOrderEmail(newOrder);
 //    await sendWhatsAppOrderNotification(newOrder);
     console.log("Order saved:", {
       id: newOrder._id,
@@ -1019,6 +1028,25 @@ Login to admin panel for details.
     }
   );
 }
+async function sendOrderEmail(order) {
+  const mailOptions = {
+    from: `"MYR Surgical Orders" <${process.env.EMAIL_USER}>`,
+    to: process.env.ADMIN_EMAIL,
+    subject: `🧾 New Order Received — ${order.orderId || "No ID"}`,
+    html: `
+      <h2>New Order Received</h2>
+      <p><strong>Name:</strong> ${order.fullName}</p>
+      <p><strong>Phone:</strong> ${order.phone}</p>
+      <p><strong>Address:</strong> ${order.address}</p>
+      <p><strong>Total:</strong> Rs ${order.totalAmount}</p>
+      <h3>Items</h3>
+      <pre>${JSON.stringify(order.items, null, 2)}</pre>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
 
 // Admin Panel
 app.get(
