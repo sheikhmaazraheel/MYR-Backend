@@ -575,7 +575,7 @@ app.post("/orders", async (req, res) => {
 
     const newOrder = new Order(orderData);
     await newOrder.save();
-    await sendWhatsAppOrderNotification(newOrder);
+//    await sendWhatsAppOrderNotification(newOrder);
     console.log("Order saved:", {
       id: newOrder._id,
       orderId: newOrder.orderId,
