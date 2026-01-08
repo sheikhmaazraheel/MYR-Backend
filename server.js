@@ -576,12 +576,7 @@ app.post("/orders", async (req, res) => {
     res
       .status(201)
       .json({ success: true, message: "Order placed", orderId: newOrder._id });
-  } catch (err) {
-    console.error("Order Error:", { message: err.message, stack: err.stack });
-    res
-      .status(500)
-      .json({ success: false, message: `Order failed: ${err.message}` });
-  }
+
   setImmediate(async () => {
     try {
       await sendOrderEmail(newOrder);
@@ -592,6 +587,12 @@ app.post("/orders", async (req, res) => {
   });
 
   //    await sendWhatsAppOrderNotification(newOrder);
+  } catch (err) {
+    console.error("Order Error:", { message: err.message, stack: err.stack });
+    res
+      .status(500)
+      .json({ success: false, message: `Order failed: ${err.message}` });
+  }
 });
 
 // Get All Orders
