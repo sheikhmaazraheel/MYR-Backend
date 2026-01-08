@@ -583,7 +583,11 @@ app.post("/orders", async (req, res) => {
 
     const newOrder = new Order(orderData);
     await newOrder.save();
-    await sendOrderEmail(newOrder);
+    try {
+      await sendOrderEmail(newOrder);
+    } catch (emailErr) {
+      console.error("Email failed:", emailErr.message);
+    }
 //    await sendWhatsAppOrderNotification(newOrder);
     console.log("Order saved:", {
       id: newOrder._id,
