@@ -63,10 +63,7 @@ app.use((req, res, next) => {
 // CORS Setup
 app.use(
   cors({
-    origin: [
-  "https://www.myrsurgical.com",
-  "https://myrsurgical.com"
-],
+    origin: ["https://www.myrsurgical.com", "https://myrsurgical.com"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
@@ -219,7 +216,8 @@ app.use((err, req, res, next) => {
 // Upload Product
 app.post(
   "/upload",
-  isAuthenticated, upload.array("images", 10),
+  isAuthenticated,
+  upload.array("images", 10),
   async (req, res) => {
     try {
       const {
@@ -243,11 +241,9 @@ app.post(
           price,
           category,
         });
-        return res
-          .status(400)
-          .json({
-            message: "Missing required fields: id, name, price, category",
-          });
+        return res.status(400).json({
+          message: "Missing required fields: id, name, price, category",
+        });
       }
 
       // Handle multiple image uploads
@@ -357,7 +353,8 @@ app.get("/products", async (req, res) => {
 // Update Product
 app.put(
   "/products/:id",
-  isAuthenticated, upload.array("images", 10),
+  isAuthenticated,
+  upload.array("images", 10),
   async (req, res) => {
     try {
       const {
@@ -381,11 +378,9 @@ app.put(
           price,
           category,
         });
-        return res
-          .status(400)
-          .json({
-            message: "Missing required fields: id, name, price, category",
-          });
+        return res.status(400).json({
+          message: "Missing required fields: id, name, price, category",
+        });
       }
 
       // Fetch existing product to get old images (for potential deletion)
@@ -499,20 +494,17 @@ app.put(
 );
 
 // Delete Product
-app.delete(
-  "/products/:id",
-  isAuthenticated, async (req, res) => {
-    try {
-      const deleted = await Product.findOneAndDelete({ id: req.params.id });
-      if (!deleted) return res.status(404).json({ message: "Not found" });
-      console.log("Product deleted:", { id: req.params.id });
-      res.json({ message: "Product deleted" });
-    } catch (err) {
-      console.error("Delete Error:", err);
-      res.status(500).json({ message: "Delete failed" });
-    }
+app.delete("/products/:id", isAuthenticated, async (req, res) => {
+  try {
+    const deleted = await Product.findOneAndDelete({ id: req.params.id });
+    if (!deleted) return res.status(404).json({ message: "Not found" });
+    console.log("Product deleted:", { id: req.params.id });
+    res.json({ message: "Product deleted" });
+  } catch (err) {
+    console.error("Delete Error:", err);
+    res.status(500).json({ message: "Delete failed" });
   }
-);
+});
 
 // Submit Order
 app.post("/orders", async (req, res) => {
@@ -537,12 +529,10 @@ app.post("/orders", async (req, res) => {
     for (const field of requiredFields) {
       if (!orderData[field]) {
         console.error("Validation Error: Missing", field);
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `Missing required field: ${field}`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `Missing required field: ${field}`,
+        });
       }
     }
 
@@ -552,23 +542,19 @@ app.post("/orders", async (req, res) => {
       orderData.cartItems.length === 0
     ) {
       console.error("Validation Error: Invalid cartItems");
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Cart items must be a non-empty array",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Cart items must be a non-empty array",
+      });
     }
 
     for (const item of orderData.cartItems) {
       if (!item.name || !item.price || !item.quantity) {
         console.error("Validation Error: Invalid cart item", item);
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Each cart item must have name, price, and quantity",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Each cart item must have name, price, and quantity",
+        });
       }
     }
 
@@ -583,12 +569,6 @@ app.post("/orders", async (req, res) => {
 
     const newOrder = new Order(orderData);
     await newOrder.save();
-    try {
-      await sendOrderEmail(newOrder);
-    } catch (emailErr) {
-      console.error("Email failed:", emailErr.message);
-    }
-//    await sendWhatsAppOrderNotification(newOrder);
     console.log("Order saved:", {
       id: newOrder._id,
       orderId: newOrder.orderId,
@@ -602,6 +582,16 @@ app.post("/orders", async (req, res) => {
       .status(500)
       .json({ success: false, message: `Order failed: ${err.message}` });
   }
+  setImmediate(async () => {
+    try {
+      await sendOrderEmail(newOrder);
+      console.log("Order email sent");
+    } catch (err) {
+      console.error("Email failed:", err.message);
+    }
+  });
+
+  //    await sendWhatsAppOrderNotification(newOrder);
 });
 
 // Get All Orders
@@ -630,21 +620,17 @@ app.get("/orders/:id", async (req, res) => {
 });
 
 // Delete Order
-app.delete(
-  "/orders/:id",
-  isAuthenticated,
-  async (req, res) => {
-    try {
-      const deleted = await Order.findByIdAndDelete(req.params.id);
-      if (!deleted) return res.status(404).json({ message: "Order not found" });
-      console.log("Order deleted:", { id: req.params.id });
-      res.json({ message: "Order deleted" });
-    } catch (err) {
-      console.error("Delete Order Error:", err);
-      res.status(500).json({ message: "Failed to delete order" });
-    }
+app.delete("/orders/:id", isAuthenticated, async (req, res) => {
+  try {
+    const deleted = await Order.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Order not found" });
+    console.log("Order deleted:", { id: req.params.id });
+    res.json({ message: "Order deleted" });
+  } catch (err) {
+    console.error("Delete Order Error:", err);
+    res.status(500).json({ message: "Failed to delete order" });
   }
-);
+});
 
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
@@ -821,12 +807,10 @@ app.get("/orders/:id/receipt", async (req, res) => {
       message: err.message,
       stack: err.stack,
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: `Failed to generate receipt: ${err.message}`,
-      });
+    res.status(500).json({
+      success: false,
+      message: `Failed to generate receipt: ${err.message}`,
+    });
   }
 });
 
@@ -990,15 +974,12 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
       message: err.message,
       stack: err.stack,
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: `Failed to preview receipt: ${err.message}`,
-      });
+    res.status(500).json({
+      success: false,
+      message: `Failed to preview receipt: ${err.message}`,
+    });
   }
 });
-
 
 async function sendWhatsAppOrderNotification(order) {
   const message = `
@@ -1051,14 +1032,10 @@ async function sendOrderEmail(order) {
   await transporter.sendMail(mailOptions);
 }
 
-
 // Admin Panel
-app.get(
-  "/admin.html",
-  isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, "..", "admin.html"));
-  }
-);
+app.get("/admin.html", isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "admin.html"));
+});
 
 // Default
 app.get("/", (req, res) => res.send("Server is running ✅"));
