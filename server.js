@@ -689,23 +689,37 @@ app.post(
 
 // Get Banner
 app.get("/banners", async (req, res) => {
-  const now = new Date();
+  try {
+    const now = new Date();
 
-  const banners = await Banner.find({
-    active: true,
-    $or: [
-      { startDate: { $exists: false } },
-      { startDate: { $lte: now } }
-    ],
-    $or: [
-      { endDate: { $exists: false } },
-      { endDate: { $gte: now } }
-    ]
-  });
+    const banners = await Banner.find({
+      active: true,
+      $and: [
+        {
+          $or: [
+            { startDate: { $exists: false } },
+            { startDate: null },
+            { startDate: { $lte: now } }
+          ]
+        },
+        {
+          $or: [
+            { endDate: { $exists: false } },
+            { endDate: null },
+            { endDate: { $gte: now } }
+          ]
+        }
+      ]
+    }).sort({ createdAt: -1 });
 
-  
-  res.json(banners);
+    res.json(banners);
+  } catch (err) {
+    console.error("Banner fetch error:", err);
+    res.status(500).json([]);
+  }
 });
+
+
 app.get("/admin/banners", isAuthenticated, async (req, res) => {
   const banners = await Banner.find().sort({ createdAt: -1 });
   res.json(banners);
