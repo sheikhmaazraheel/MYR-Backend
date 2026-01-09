@@ -12,6 +12,7 @@ const fs = require("fs");
 const PDFDocument = require("pdfkit");
 const Product = require("./models/Product");
 const Order = require("./models/Orders");
+const Banner = require("./models/Banner");
 const axios = require("axios");
 
 const app = express();
@@ -632,6 +633,68 @@ app.delete("/orders/:id", isAuthenticated, async (req, res) => {
     res.status(500).json({ message: "Failed to delete order" });
   }
 });
+                        //     BANNNER  
+// Upload Banner
+app.post(
+  "/admin/banners",
+  isAuthenticated,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { link, startDate, endDate } = req.body;
+
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "myr-banners",
+        transformation: [
+          { width: 1600, crop: "limit" },
+          { quality: "auto" }
+        ]
+      });
+
+      const banner = new Banner({
+        imageUrl: result.secure_url,
+        publicId: result.public_id,
+        link,
+        startDate,
+        endDate
+      });
+
+      await banner.save();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false });
+    }
+  }
+);
+// Get Banner
+app.get("/banners", async (req, res) => {
+  const now = new Date();
+
+  const banners = await Banner.find({
+    active: true,
+    $or: [
+      { startDate: { $exists: false } },
+      { startDate: { $lte: now } }
+    ],
+    $or: [
+      { endDate: { $exists: false } },
+      { endDate: { $gte: now } }
+    ]
+  });
+
+  res.json(banners);
+});
+// Deete Banner 
+app.delete("/admin/banners/:id", isAuthenticated, async (req, res) => {
+  const banner = await Banner.findById(req.params.id);
+  if (!banner) return res.status(404).json({ success: false });
+
+  await cloudinary.uploader.destroy(banner.publicId);
+  await banner.deleteOne();
+
+  res.json({ success: true });
+});
+
 
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
@@ -661,7 +724,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid order ID" });
     }
-
+// Order PDF
     const order = await Order.findById(orderId);
     if (!order) {
       console.error("Order not found:", orderId);
