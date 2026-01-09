@@ -724,7 +724,7 @@ app.get("/admin/banners", isAuthenticated, async (req, res) => {
   const banners = await Banner.find().sort({ createdAt: -1 });
   res.json(banners);
 });
-// Deete Banner 
+// Delete Banner 
 app.delete("/admin/banners/:id", isAuthenticated, async (req, res) => {
   const banner = await Banner.findById(req.params.id);
   if (!banner) return res.status(404).json({ success: false });
@@ -734,6 +734,24 @@ app.delete("/admin/banners/:id", isAuthenticated, async (req, res) => {
 
   res.json({ success: true });
 });
+// toggle active status
+// Toggle Banner Active Status
+app.patch("/admin/banners/:id/toggle", isAuthenticated, async (req, res) => {
+  try {
+    const banner = await Banner.findById(req.params.id);
+    if (!banner) {
+      return res.status(404).json({ success: false });
+    }
+
+    banner.active = !banner.active;
+    await banner.save();
+
+    res.json({ success: true, active: banner.active });
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
+
 
 
 // Health Check Endpoint
