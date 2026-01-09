@@ -633,7 +633,7 @@ app.delete("/orders/:id", isAuthenticated, async (req, res) => {
     res.status(500).json({ message: "Failed to delete order" });
   }
 });
-                        //     BANNNER  
+       //     BANNNER  
 // Upload Banner
 app.post(
   "/admin/banners",
@@ -641,7 +641,14 @@ app.post(
   upload.single("image"),
   async (req, res) => {
     try {
-      const { link, startDate, endDate } = req.body;
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "No image uploaded"
+        });
+      }
+
+      const { url, startDate, endDate } = req.body;
 
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "myr-banners",
@@ -651,21 +658,35 @@ app.post(
         ]
       });
 
+      // delete local file
+      fs.unlink(req.file.path, () => {});
+
       const banner = new Banner({
         imageUrl: result.secure_url,
         publicId: result.public_id,
-        link,
-        startDate,
-        endDate
+        link: url || "",
+        startDate: startDate || null,
+        endDate: endDate || null,
+        active: true
       });
 
       await banner.save();
-      res.json({ success: true });
+
+      res.json({
+        success: true,
+        message: "Banner uploaded successfully"
+      });
+
     } catch (err) {
-      res.status(500).json({ success: false });
+      console.error("Banner upload error:", err);
+      res.status(500).json({
+        success: false,
+        message: "Banner upload failed"
+      });
     }
   }
 );
+
 // Get Banner
 app.get("/banners", async (req, res) => {
   const now = new Date();
@@ -682,6 +703,11 @@ app.get("/banners", async (req, res) => {
     ]
   });
 
+  
+  res.json(banners);
+});
+app.get("/admin/banners", isAuthenticated, async (req, res) => {
+  const banners = await Banner.find().sort({ createdAt: -1 });
   res.json(banners);
 });
 // Deete Banner 
