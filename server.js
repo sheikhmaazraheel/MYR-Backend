@@ -1130,24 +1130,7 @@ Login to admin panel for details.
     }
   );
 }
-async function sendOrderEmail(order) {
-  const mailOptions = {
-    from: `"MYR Surgical Orders" <${process.env.EMAIL_USER}>`,
-    to: process.env.ADMIN_EMAIL,
-    subject: `🧾 New Order Received — ${order.orderId || "No ID"}`,
-    html: `
-      <h2>New Order Received</h2>
-      <p><strong>Name:</strong> ${order.fullName}</p>
-      <p><strong>Phone:</strong> ${order.phone}</p>
-      <p><strong>Address:</strong> ${order.address}</p>
-      <p><strong>Total:</strong> Rs ${order.totalAmount}</p>
-      <h3>Items</h3>
-      <pre>${JSON.stringify(order.items, null, 2)}</pre>
-    `,
-  };
 
-  await transporter.sendMail(mailOptions);
-}
 
 // Admin Panel
 app.get("/admin.html", isAuthenticated, (req, res) => {
