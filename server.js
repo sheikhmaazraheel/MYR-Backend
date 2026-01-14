@@ -13,7 +13,6 @@ import fs from "fs";
 import PDFDocument from "pdfkit";
 import axios from "axios";
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
 
 
 import { fileURLToPath } from "url";
