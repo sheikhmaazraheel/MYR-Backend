@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const bannerSchema = new mongoose.Schema({
   imageUrl: { type: String, required: true },   // Cloudinary URL
@@ -10,4 +10,4 @@ const bannerSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("Banner", bannerSchema);
+export default mongoose.model("Banner", bannerSchema);

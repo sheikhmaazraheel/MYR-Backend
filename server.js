@@ -1,25 +1,41 @@
 import { sendOrderEmail } from "./utils/sendOrderEmail.js";
 import dotenv from "dotenv";
-dotenv.config();
-const express = require("express");
-const mongoose = require("mongoose");
-const multer = require("multer");
-const path = require("path");
-const bcrypt = require("bcrypt");
-const cors = require("cors");
-const session = require("express-session");
-const MongoStore = require("connect-mongo");
-const cloudinary = require("cloudinary").v2;
-const fs = require("fs");
-const PDFDocument = require("pdfkit");
-const Product = require("./models/Product");
-const Order = require("./models/Orders");
-const Banner = require("./models/Banner");
-const axios = require("axios");
+import express from "express";
+import mongoose from "mongoose";
+import multer from "multer";
+import path from "path";
+import bcrypt from "bcrypt";
+import cors from "cors";
+import session from "express-session";
+import MongoStore from "connect-mongo";
+import cloudinaryPkg from "cloudinary";
+import fs from "fs";
+import PDFDocument from "pdfkit";
+import axios from "axios";
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 
+
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Models
+import Product from "./models/Product.js";
+import Order from "./models/Orders.js";
+import Banner from "./models/Banner.js";
+
+// Load env
+dotenv.config();
+
+// Cloudinary v2
+const cloudinary = cloudinaryPkg.v2;
+
+// App init
 const app = express();
 const PORT = process.env.PORT || 3000;
-const nodemailer = require("nodemailer");
+
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
