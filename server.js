@@ -36,13 +36,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
 // Trust Render's proxy
 app.set("trust proxy", 1);
 

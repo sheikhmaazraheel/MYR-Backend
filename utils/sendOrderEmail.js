@@ -1,14 +1,29 @@
 import nodemailer from "nodemailer";
 
+import nodemailer from "nodemailer";
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: true, // SSL
+  host: "smtp.hostinger.com",
+  port: 587,
+  secure: false, // MUST be false for 587
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  connectionTimeout: 10000, // 10 seconds
 });
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP connection failed:", error.message);
+  } else {
+    console.log("SMTP server is ready to send emails");
+  }
+});
+
 
 /**
  * Sends order notification email to admin
