@@ -2,17 +2,17 @@ import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
   host: "smtp.hostinger.com",
-  port: 587,
-  secure: false, // MUST be false for 587
+  port: 465,
+  secure: true, // MUST be true for 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 10000, // 10 seconds
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
 });
+
 
 transporter.verify((error, success) => {
   if (error) {
