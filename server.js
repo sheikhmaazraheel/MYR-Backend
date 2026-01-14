@@ -1,3 +1,5 @@
+import { sendOrderEmail } from "./utils/sendOrderEmail.js";
+
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
@@ -66,7 +68,7 @@ app.use(
   cors({
     origin: ["https://www.myrsurgical.com", "https://myrsurgical.com"],
     credentials: true,
-    methods: ["GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Cookie", "Cache-Control"],
     exposedHeaders: ["Set-Cookie"],
   })
@@ -578,16 +580,16 @@ app.post("/orders", async (req, res) => {
       .status(201)
       .json({ success: true, message: "Order placed", orderId: newOrder._id });
 
-  setImmediate(async () => {
-    try {
-      await sendOrderEmail(newOrder);
-      console.log("Order email sent");
-    } catch (err) {
-      console.error("Email failed:", err.message);
-    }
-  });
+    setImmediate(async () => {
+      try {
+        await sendOrderEmail(newOrder);
+        console.log("Order email sent successfully");
+      } catch (err) {
+        console.error("Order email failed:", err.message);
+      }
+    });
 
-  //    await sendWhatsAppOrderNotification(newOrder);
+    //    await sendWhatsAppOrderNotification(newOrder);
   } catch (err) {
     console.error("Order Error:", { message: err.message, stack: err.stack });
     res
@@ -633,7 +635,7 @@ app.delete("/orders/:id", isAuthenticated, async (req, res) => {
     res.status(500).json({ message: "Failed to delete order" });
   }
 });
-       //     BANNNER  
+//     BANNNER
 // Upload Banner
 app.post(
   "/admin/banners",
@@ -644,7 +646,7 @@ app.post(
       if (!req.file) {
         return res.status(400).json({
           success: false,
-          message: "No image uploaded"
+          message: "No image uploaded",
         });
       }
 
@@ -652,10 +654,7 @@ app.post(
 
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "myr-banners",
-        transformation: [
-          { width: 1600, crop: "limit" },
-          { quality: "auto" }
-        ]
+        transformation: [{ width: 1600, crop: "limit" }, { quality: "auto" }],
       });
 
       // delete local file
@@ -667,21 +666,20 @@ app.post(
         link: url || "",
         startDate: startDate || null,
         endDate: endDate || null,
-        active: true
+        active: true,
       });
 
       await banner.save();
 
       res.json({
         success: true,
-        message: "Banner uploaded successfully"
+        message: "Banner uploaded successfully",
       });
-
     } catch (err) {
       console.error("Banner upload error:", err);
       res.status(500).json({
         success: false,
-        message: "Banner upload failed"
+        message: "Banner upload failed",
       });
     }
   }
@@ -699,17 +697,17 @@ app.get("/banners", async (req, res) => {
           $or: [
             { startDate: { $exists: false } },
             { startDate: null },
-            { startDate: { $lte: now } }
-          ]
+            { startDate: { $lte: now } },
+          ],
         },
         {
           $or: [
             { endDate: { $exists: false } },
             { endDate: null },
-            { endDate: { $gte: now } }
-          ]
-        }
-      ]
+            { endDate: { $gte: now } },
+          ],
+        },
+      ],
     }).sort({ createdAt: -1 });
 
     res.json(banners);
@@ -719,12 +717,11 @@ app.get("/banners", async (req, res) => {
   }
 });
 
-
 app.get("/admin/banners", isAuthenticated, async (req, res) => {
   const banners = await Banner.find().sort({ createdAt: -1 });
   res.json(banners);
 });
-// Delete Banner 
+// Delete Banner
 app.delete("/admin/banners/:id", isAuthenticated, async (req, res) => {
   const banner = await Banner.findById(req.params.id);
   if (!banner) return res.status(404).json({ success: false });
@@ -751,8 +748,6 @@ app.patch("/admin/banners/:id/toggle", isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-
-
 
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
@@ -782,7 +777,7 @@ app.get("/orders/:id/receipt", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid order ID" });
     }
-// Order PDF
+    // Order PDF
     const order = await Order.findById(orderId);
     if (!order) {
       console.error("Order not found:", orderId);
