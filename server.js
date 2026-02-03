@@ -13,7 +13,6 @@ import PDFDocument from "pdfkit";
 import axios from "axios";
 import nodemailer from "nodemailer";
 
-
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +32,6 @@ const cloudinary = cloudinaryPkg.v2;
 // App init
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 
 // Trust Render's proxy
 app.set("trust proxy", 1);
@@ -519,32 +517,39 @@ app.delete("/products/:id", isAuthenticated, async (req, res) => {
 // ORDER WHATSAPP NOTIFICATION
 
 export async function sendWhatsAppOrderNotification(order) {
-  const message = `
-🛒 *NEW ORDER RECEIVED*
-Order ID: ${order.orderId}
-Name: ${order.name}
-Contact: ${order.contact}
-Total: Rs ${order.totalAmount}
-Payment: ${order.paymentMethod}
-`;
+  try{
+        console.log("📤 Sending WhatsApp message...");
+    console.log("Phone ID:", process.env.WHATSAPP_PHONE_ID);
+    console.log("To:", process.env.ADMIN_PHONE);
+    
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: process.env.ADMIN_PHONE,
+        type: "text",
+        text: {
+          body: `🛒 NEW ORDER RECEIVED
 
-  await axios.post(
-    `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-    {
-      messaging_product: "whatsapp",
-      to: process.env.ADMIN_PHONE,
-      type: "text",
-      text: { body: message }
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json"
+  Order ID: ${order._id}
+  Customer: ${order.customerName}
+  Total: Rs ${order.total}
+
+  Check admin panel.`,
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
       }
-    }
-  );
+    );
+    console.log("WhatsApp order notification sent for order:", order._id);
+  } catch (error) {
+    console.error("WhatsApp Notification Error:", error);
+  }
 }
-
 
 // Submit Order
 app.post("/orders", async (req, res) => {
