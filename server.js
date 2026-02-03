@@ -531,9 +531,7 @@ export async function sendWhatsAppOrderNotification(order) {
     const itemsHtml = order.cartItems
       .map(
         (item) => `
-                            <li>
-                              ${item.name} × ${item.quantity} — Rs ${item.price}
-                            </li>`
+                              - ${item.name} × ${item.quantity} — Rs ${item.price}\n`
       )
       .join("");
     const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\nCustomer: ${customerName}\nOrder Details:\n${itemsHtml}\nTotal: Rs ${total}\n\nCheck admin panel.\nwww.myrsurgical.com/protected/admin`;
