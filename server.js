@@ -1,4 +1,3 @@
-import { sendOrderEmail } from "./utils/sendOrderEmail.js";
 import dotenv from "dotenv";
 import express from "express";
 import mongoose from "mongoose";
@@ -517,6 +516,37 @@ app.delete("/products/:id", isAuthenticated, async (req, res) => {
   }
 });
 
+// ORDER WHATSAPP NOTIFICATION
+import axios from "axios";
+
+export async function sendWhatsAppOrderNotification(order) {
+  const message = `
+🛒 *NEW ORDER RECEIVED*
+Order ID: ${order.orderId}
+Name: ${order.name}
+Contact: ${order.contact}
+Total: Rs ${order.totalAmount}
+Payment: ${order.paymentMethod}
+`;
+
+  await axios.post(
+    `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to: process.env.ADMIN_PHONE,
+      type: "text",
+      text: { body: message }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
+
 // Submit Order
 app.post("/orders", async (req, res) => {
   try {
@@ -589,12 +619,7 @@ app.post("/orders", async (req, res) => {
       .json({ success: true, message: "Order placed", orderId: newOrder._id });
 
     setImmediate(async () => {
-      try {
-        await sendOrderEmail(newOrder);
-        console.log("Order email sent successfully");
-      } catch (err) {
-        console.error("Order email failed:", err.message);
-      }
+      sendWhatsAppOrderNotification(newOrder).catch(console.error);
     });
 
     //    await sendWhatsAppOrderNotification(newOrder);
