@@ -517,7 +517,6 @@ app.delete("/products/:id", isAuthenticated, async (req, res) => {
 });
 
 // ORDER WHATSAPP NOTIFICATION
-import axios from "axios";
 
 export async function sendWhatsAppOrderNotification(order) {
   const message = `
@@ -1130,40 +1129,6 @@ app.get("/orders/:id/receipt/preview", async (req, res) => {
     });
   }
 });
-
-async function sendWhatsAppOrderNotification(order) {
-  const message = `
-🛒 *New Order Received*
-
-🆔 Order ID: ${order.orderId}
-👤 Name: ${order.name}
-📞 Contact: ${order.contact}
-🏙 City: ${order.city}
-💰 Total: Rs. ${order.totalAmount}
-💳 Payment: ${order.paymentMethod}
-
-📦 Items: ${order.cartItems.length}
-
-Login to admin panel for details.
-`;
-
-  await axios.post(
-    `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-    {
-      messaging_product: "whatsapp",
-      to: process.env.ADMIN_PHONE,
-      type: "text",
-      text: { body: message },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-}
-
 
 // Admin Panel
 app.get("/admin.html", isAuthenticated, (req, res) => {
