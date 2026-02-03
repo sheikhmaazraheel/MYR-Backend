@@ -524,9 +524,19 @@ export async function sendWhatsAppOrderNotification(order) {
 
     // Use the correct fields from the Order model
     const customerName = order.name || order.customerName || "Customer";
-    const total = typeof order.totalAmount === "number" ? order.totalAmount : order.total || 0;
-
-    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\nCustomer: ${customerName}\nTotal: Rs ${total}\n\nCheck admin panel.`;
+    const total =
+      typeof order.totalAmount === "number"
+        ? order.totalAmount
+        : order.total || 0;
+    const itemsHtml = order.cartItems
+      .map(
+        (item) => `
+                            <li>
+                              ${item.name} × ${item.quantity} — Rs ${item.price}
+                            </li>`
+      )
+      .join("");
+    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\nCustomer: ${customerName}\nOrder Details:\n${itemsHtml}\nTotal: Rs ${total}\n\nCheck admin panel.\nwww.myrsurgical.com/protected/admin`;
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
@@ -547,7 +557,10 @@ export async function sendWhatsAppOrderNotification(order) {
     );
     console.log("WhatsApp order notification sent for order:", order._id);
   } catch (error) {
-    console.error("WhatsApp Notification Error:", error?.response?.data || error);
+    console.error(
+      "WhatsApp Notification Error:",
+      error?.response?.data || error
+    );
   }
 }
 
