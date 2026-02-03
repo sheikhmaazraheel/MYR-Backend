@@ -517,11 +517,17 @@ app.delete("/products/:id", isAuthenticated, async (req, res) => {
 // ORDER WHATSAPP NOTIFICATION
 
 export async function sendWhatsAppOrderNotification(order) {
-  try{
-        console.log("📤 Sending WhatsApp message...");
+  try {
+    console.log("📤 Sending WhatsApp message...");
     console.log("Phone ID:", process.env.WHATSAPP_PHONE_ID);
     console.log("To:", process.env.ADMIN_PHONE);
-    
+
+    // Use the correct fields from the Order model
+    const customerName = order.name || order.customerName || "Customer";
+    const total = typeof order.totalAmount === "number" ? order.totalAmount : order.total || 0;
+
+    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\nCustomer: ${customerName}\nTotal: Rs ${total}\n\nCheck admin panel.`;
+
     await axios.post(
       `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
       {
@@ -529,13 +535,7 @@ export async function sendWhatsAppOrderNotification(order) {
         to: process.env.ADMIN_PHONE,
         type: "text",
         text: {
-          body: `🛒 NEW ORDER RECEIVED
-
-  Order ID: ${order._id}
-  Customer: ${order.customerName}
-  Total: Rs ${order.total}
-
-  Check admin panel.`,
+          body: messageBody,
         },
       },
       {
@@ -547,7 +547,7 @@ export async function sendWhatsAppOrderNotification(order) {
     );
     console.log("WhatsApp order notification sent for order:", order._id);
   } catch (error) {
-    console.error("WhatsApp Notification Error:", error);
+    console.error("WhatsApp Notification Error:", error?.response?.data || error);
   }
 }
 
@@ -621,9 +621,13 @@ app.post("/orders", async (req, res) => {
     res
       .status(201)
       .json({ success: true, message: "Order placed", orderId: newOrder._id });
-
+    // Trigger WhatsApp notification asynchronously; don't block response
     setImmediate(async () => {
-      sendWhatsAppOrderNotification(newOrder).catch(console.error);
+      try {
+        await sendWhatsAppOrderNotification(newOrder);
+      } catch (err) {
+        console.error("Failed to send WhatsApp notification:", err);
+      }
     });
 
     //    await sendWhatsAppOrderNotification(newOrder);
