@@ -532,7 +532,7 @@ export async function sendWhatsAppOrderNotification(order) {
       .map(
         (item) => `\n- ${item.name} × ${item.quantity} — Rs ${item.price}`)
       .join("");
-    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\nCustomer: ${customerName}\nOrder Details:\n${itemsHtml}\nTotal: Rs ${total}\n\nCheck admin panel.\nwww.myrsurgical.com/protected/admin`;
+    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\n\n*Customer: ${customerName}*\nOrder Details:\n${itemsHtml}\nTotal: Rs ${total}\n\nCheck admin panel.\nwww.myrsurgical.com/protected/admin`;
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
