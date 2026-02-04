@@ -7,7 +7,7 @@ export async function sendWhatsAppTemplate({
   components
 }) {
   // Basic validation
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
   const token = process.env.WHATSAPP_TOKEN;
 
   if (!phoneId) throw new Error("WHATSAPP_PHONE_NUMBER_ID is not set in env");
