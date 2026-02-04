@@ -534,7 +534,7 @@ export async function sendWhatsAppOrderNotification(order) {
       .join("");    
 
 await sendWhatsAppTemplate({
-  to: process.env.ADMIN_WHATSAPP,
+  to: process.env.ADMIN_PHONE,
   templateName: "admin_order_created",
   components: [
     {
