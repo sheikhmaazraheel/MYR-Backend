@@ -12,7 +12,7 @@ import fs from "fs";
 import PDFDocument from "pdfkit";
 import axios from "axios";
 import nodemailer from "nodemailer";
-
+import { sendWhatsAppTemplate } from "./utils/sendWhatsAppTemplate.js";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -528,29 +528,44 @@ export async function sendWhatsAppOrderNotification(order) {
       typeof order.totalAmount === "number"
         ? order.totalAmount
         : order.total || 0;
-    const itemsHtml = order.cartItems
+    const items = order.cartItems
       .map(
         (item) => `\n- ${item.name} × ${item.quantity} — Rs ${item.price}`)
-      .join("");
-    const messageBody = `🛒 NEW ORDER RECEIVED\n\nOrder ID: ${order._id}\n\n*Customer: ${customerName}*\nOrder Details:\n${itemsHtml}\nTotal: Rs ${total}\n\nCheck admin panel.\nwww.myrsurgical.com/protected/admin`;
+      .join("");    
 
-    await axios.post(
-      `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: process.env.ADMIN_PHONE,
-        type: "text",
-        text: {
-          body: messageBody,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+await sendWhatsAppTemplate({
+  to: process.env.ADMIN_WHATSAPP,
+  templateName: "admin_new_order",
+  components: [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: order.orderId },
+        { type: "text", text: customerName },
+        { type: "text", text: items },
+        { type: "text", text: total.toString() }
+      ]
+    }
+  ]
+});
+
+    await sendWhatsAppTemplate({
+  to: order.contact.replace(/^0/, "92"), // Pakistan format
+  templateName: "customer_order_received",
+  components: [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: order.orderId },
+        { type: "text", text: customerName },
+        { type: "text", text: items },
+        { type: "text", text: total.toString() }
+      ]
+    }
+  ]
+});
+
+    
     console.log("WhatsApp order notification sent for order:", order._id);
   } catch (error) {
     console.error(
