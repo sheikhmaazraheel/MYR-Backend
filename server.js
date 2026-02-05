@@ -1189,6 +1189,46 @@ app.get("/admin.html", isAuthenticated, (req, res) => {
 // Default
 app.get("/", (req, res) => res.send("Server is running ✅"));
 
+// Test endpoint for WhatsApp template sending (protected with ADMIN_TEST_SECRET)
+app.post("/admin/test-whatsapp", async (req, res) => {
+  const provided = req.headers["x-test-secret"] || req.query.secret;
+  const secret = process.env.ADMIN_TEST_SECRET;
+  if (secret && provided !== secret) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const { to, templateName } = req.body || {};
+  if (!to) return res.status(400).json({ success: false, message: "'to' is required in body" });
+
+  try {
+    const components = [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: "TEST-ORDER-123" },
+          { type: "text", text: "Test Customer" },
+          { type: "text", text: "ItemA x1 – Rs 100" },
+          { type: "text", text: "100" }
+        ]
+      }
+    ];
+
+    const resp = await sendWhatsAppOrderNotification
+      ? await sendWhatsAppTemplate({
+          to: String(to).replace(/[^0-9]/g, ""),
+          templateName: templateName || "customer_order_received",
+          components,
+        })
+      : await (async () => {
+          throw new Error("sendWhatsAppTemplate not available");
+        })();
+
+    return res.json({ success: true, data: resp });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err?.response?.data || err.message || err });
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
