@@ -528,42 +528,60 @@ export async function sendWhatsAppOrderNotification(order) {
       typeof order.totalAmount === "number"
         ? order.totalAmount
         : order.total || 0;
-    const items = order.cartItems
-      .map(
-        (item) => `\n- ${item.name} × ${item.quantity} — Rs ${item.price}`)
-      .join("");    
+    // Helper: sanitize template parameter (FB disallows new-lines/tabs and long runs of spaces)
+    const sanitizeParam = (val) =>
+      String(val || "")
+        .replace(/[\n\r\t]+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+        .slice(0, 1000); // keep reasonable length
 
-await sendWhatsAppTemplate({
-  to: process.env.ADMIN_PHONE,
-  templateName: "admin_order_created",
-  components: [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: order.orderId },
-        { type: "text", text: customerName },
-        { type: "text", text: items },
-        { type: "text", text: total.toString() }
-      ]
-    }
-  ]
-});
+    // Build items as a single-line string (no newlines)
+    const itemsSingleLine = (order.cartItems || [])
+      .map((item) => `${item.name} x${item.quantity} – Rs ${item.price}`)
+      .join("; ");
 
+    const sanitizedItems = sanitizeParam(itemsSingleLine);
+    const sanitizedCustomer = sanitizeParam(customerName);
+    const totalStr = sanitizeParam(total.toString());
+
+    // Admin panel link (use env override or sensible default)
+    const adminPanelUrl = "https://www.myrsurgical.com/protected/admin";
+
+    // Send admin notification (template expects 5 params per your template)
     await sendWhatsAppTemplate({
-  to: order.contact.replace(/^0/, "92"), // Pakistan format
-  templateName: "customer_order_received",
-  components: [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: order.orderId },
-        { type: "text", text: customerName },
-        { type: "text", text: items },
-        { type: "text", text: total.toString() }
+      to: process.env.ADMIN_PHONE,
+      templateName: "admin_order_created",
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: sanitizeParam(order.orderId) },
+            { type: "text", text: sanitizedCustomer },
+            { type: "text", text: sanitizedItems },
+            { type: "text", text: totalStr },
+            { type: "text", text: sanitizeParam(adminPanelUrl) }
+          ]
+        }
       ]
-    }
-  ]
-});
+    });
+
+    // Send customer notification (template has 4 params)
+    await sendWhatsAppTemplate({
+      to: String(order.contact || "").replace(/^0/, "92"), // Pakistan format
+      templateName: "customer_order_received",
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: sanitizeParam(order.orderId) },
+            { type: "text", text: sanitizedCustomer },
+            { type: "text", text: sanitizedItems },
+            { type: "text", text: totalStr }
+          ]
+        }
+      ]
+    });
 
     
     console.log("WhatsApp order notification sent for order:", order._id);
